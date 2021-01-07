@@ -11,6 +11,10 @@ RUN curl -L https://github.com/vlang/v/releases/latest/download/v_linux.zip -o /
     cd /tmp && \
     unzip v_linux.zip
 
+RUN curl -L https://github.com/etcd-io/etcd/releases/download/v3.4.14/etcd-v3.4.14-linux-amd64.tar.gz \
+    -o etcd.tar.gz && \
+    tar -xvf etcd.tar.gz
+
 RUN ln -s /usr/include/hiredis /usr/include/x86_64-linux-musl/ && \
     ln -s /usr/include/linux /usr/include/x86_64-linux-musl/ && \
     ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/ && \
@@ -45,6 +49,7 @@ COPY --from=0 /tmp/0-db-fs/zdbfs /bin/
 COPY --from=0 /tmp/0-db/zdbd/zdb /bin/
 COPY --from=0 /tmp/0-stor_v2/target/x86_64-unknown-linux-musl/release/zstor_v2 /bin/zstor
 COPY --from=0 /tmp/vlang_tools/vlang_tools/nscreate /bin/
+COPY --from=0 /tmp/etcd-v3.4.14-linux-amd64/etcd /bin/
 
 COPY default-sample.toml /etc/zstor-default.toml
 
