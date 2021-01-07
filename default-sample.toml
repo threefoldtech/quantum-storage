@@ -1,0 +1,78 @@
+data_shards = 2
+parity_shards = 1
+redundant_groups = 0
+redundant_nodes = 0
+
+[encryption]
+algorithm = "AES"
+key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "etcd"
+
+[meta.config]
+endpoints = ["http://127.0.0.1:2379", "http://127.0.0.1:22379", "http://127.0.0.1:32379"]
+prefix = "someprefix"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:c46:cff:fe32:39ae]:9900"
+namespace = "16437-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:c46:cff:fe32:39ae]:9900"
+namespace = "16438-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:b814:91ff:fe72:d44e]:9900"
+namespace = "16439-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:b814:91ff:fe72:d44e]:9900"
+namespace = "16440-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:94b3:c0ff:fe47:313b]:9900"
+namespace = "16441-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:94b3:c0ff:fe47:313b]:9900"
+namespace = "16442-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:3c0d:23ff:fe58:98ef]:9900"
+namespace = "16443-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:3c0d:23ff:fe58:98ef]:9900"
+namespace = "16444-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:4863:b0ff:fe86:ed5a]:9900"
+namespace = "16445-1"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:4863:b0ff:fe86:ed5a]:9900"
+namespace = "16446-1"
