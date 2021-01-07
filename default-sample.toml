@@ -14,65 +14,76 @@ algorithm = "snappy"
 type = "etcd"
 
 [meta.config]
-endpoints = ["http://127.0.0.1:2379", "http://127.0.0.1:22379", "http://127.0.0.1:32379"]
+endpoints = ["http://127.0.0.1:2379"]
 prefix = "someprefix"
 
 [[groups]]
 
 [[groups.backends]]
-address = "[2a02:1802:5e:0:c46:cff:fe32:39ae]:9900"
-namespace = "16437-1"
-
-[[groups]]
-
-[[groups.backends]]
-address = "[2a02:1802:5e:0:c46:cff:fe32:39ae]:9900"
-namespace = "16438-1"
-
-[[groups]]
-
-[[groups.backends]]
-address = "[2a02:1802:5e:0:b814:91ff:fe72:d44e]:9900"
-namespace = "16439-1"
-
-[[groups]]
-
-[[groups.backends]]
-address = "[2a02:1802:5e:0:b814:91ff:fe72:d44e]:9900"
-namespace = "16440-1"
+address = "[2a02:1802:5e:0:94b3:c0ff:fe47:313b]:9900"
+namespace = "17093-1"
+password = "future01"
 
 [[groups]]
 
 [[groups.backends]]
 address = "[2a02:1802:5e:0:94b3:c0ff:fe47:313b]:9900"
-namespace = "16441-1"
-
-[[groups]]
-
-[[groups.backends]]
-address = "[2a02:1802:5e:0:94b3:c0ff:fe47:313b]:9900"
-namespace = "16442-1"
+namespace = "17094-1"
+password = "future01"
 
 [[groups]]
 
 [[groups.backends]]
 address = "[2a02:1802:5e:0:3c0d:23ff:fe58:98ef]:9900"
-namespace = "16443-1"
+namespace = "17095-1"
+password = "future01"
 
 [[groups]]
 
 [[groups.backends]]
 address = "[2a02:1802:5e:0:3c0d:23ff:fe58:98ef]:9900"
-namespace = "16444-1"
+namespace = "17096-1"
+password = "future01"
 
 [[groups]]
 
 [[groups.backends]]
 address = "[2a02:1802:5e:0:4863:b0ff:fe86:ed5a]:9900"
-namespace = "16445-1"
+namespace = "17097-1"
+password = "future01"
 
 [[groups]]
 
 [[groups.backends]]
 address = "[2a02:1802:5e:0:4863:b0ff:fe86:ed5a]:9900"
-namespace = "16446-1"
+namespace = "17098-1"
+password = "future01"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:a8d9:daff:fedd:ef6f]:9900"
+namespace = "17099-1"
+password = "future01"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:a8d9:daff:fedd:ef6f]:9900"
+namespace = "17100-1"
+password = "future01"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:90f0:c1ff:fe5f:18eb]:9900"
+namespace = "17101-1"
+password = "future01"
+
+[[groups]]
+
+[[groups.backends]]
+address = "[2a02:1802:5e:0:90f0:c1ff:fe5f:18eb]:9900"
+namespace = "17102-1"
+password = "future01"
+
