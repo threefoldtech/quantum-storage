@@ -7,12 +7,18 @@ zstorconf="/etc/zstor-default.toml"
 zstorbin="/bin/zstor"
 
 if [ "$action" == "jump-index" ]; then
-    # backup index file
-    ${zstorbin} -c ${zstorconf} store --file "$3"
+    # skip index saving, file are mutable
+    # ${zstorbin} -c ${zstorconf} store --file "$3"
     exit 0
 fi
 
 if [ "$action" == "jump-data" ]; then
+    namespace=$(basename $(dirname $3))
+    if [ "${namespace}" == "zdbfs-temp" ]; then
+        # skipping temporary namespace
+        exit 0
+    fi
+
     # backup data file
     ${zstorbin} -c ${zstorconf} store --file "$3"
     exit 0
