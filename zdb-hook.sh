@@ -21,6 +21,12 @@ if [ "$action" == "jump-data" ]; then
 
     # backup data file
     ${zstorbin} -c ${zstorconf} store --file "$3"
+
+    if [ $? == 0 ]; then
+        echo "File saved, cleanup local file: $3"
+        rm -f "$3"
+    fi
+
     exit 0
 fi
 
