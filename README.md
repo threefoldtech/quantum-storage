@@ -8,7 +8,7 @@
 2. [Repository content](#repository-content)
 3. [Execution](#execution)
 4. [Init script](#init-script)
-5. [Extra features](#extra-features)
+5. [Extra feature](#extra-feature)
 
 # Components
 
@@ -70,7 +70,7 @@ If you don't have ipv6 working, 0-fs-db will still works but you won't have the 
 ## Build
 
 Build the docker image using:
-```
+```bash
 docker build -t tf/quantum .
 ```
 
@@ -81,7 +81,7 @@ to the image.
 ## Execution
 
 You need to run the container with `FUSE` access enabled and mount privilege:
-```
+```bash
 docker run --rm -it --device /dev/fuse --cap-add CAP_SYS_ADMIN tf/quantum
 ```
 
@@ -93,7 +93,7 @@ minio web interface. You maybe need to add `-p 9000:9000` if you want some port-
 If you want to deploy stuff yourself, here are some explaination on commands executed inside the container.
 
 ## 0-db
-```
+```bash
 zdb \
   --datasize $((32 * 1024 * 1024)) \     # limit datafiles to 32MB
   --mode seq \                           # default running mode required by 0-db-fs
@@ -109,7 +109,7 @@ to 32 MB, basically, each time 32 MB are send to the fuse, theses data are sent 
 Some fix later will push data even before reaching the limit to ensure time-based persistance aswell.
 
 ## 0-db-fs
-```
+```bash
 nscreate       # create required default namespaces in 0-db, expected by 0-db-fs
 zdbfs /mnt     # mount the filesystem into /mnt
 ```
@@ -122,7 +122,7 @@ to configure that, if it runs alone, obviously if it dies, you will loose your g
 # Extra Feature
 
 You can use a special option with docker to mount-share the container mountpoint:
-```
+```bash
 mkdir /mnt/zdbfs
 docker run [...] --mount type=bind,source=/mnt/zdbfs,target=/mnt,bind-propagation=rshared tf/quantum
 ```
