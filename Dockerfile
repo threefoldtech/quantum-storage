@@ -37,9 +37,9 @@ RUN cd /tmp/0-db-fs && \
     CC=musl-gcc LDFLAGS=-L/usr/lib/x86_64-linux-gnu make release
 
 RUN cd /tmp/0-db/libzdb && \
-    CC=musl-gcc make && \
+    CC=musl-gcc make release && \
     cd /tmp/0-db/zdbd && \
-    CC=musl-gcc make 
+    CC=musl-gcc make release
                     
 RUN cd /tmp/0-stor_v2 && \
     . $HOME/.cargo/env && \
@@ -53,7 +53,11 @@ RUN cd /tmp/minio && \
     PATH=/usr/local/go/bin:$PATH CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"'
 
 FROM alpine:latest  
-RUN apk --no-cache add fuse3 hiredis
+RUN apk --no-cache add fuse3
+RUN cd /tmp && \
+    wget http://dl-cdn.alpinelinux.org/alpine/v3.11/main/x86_64/hiredis-0.14.0-r3.apk && \
+    apk add hiredis-0.14.0-r3.apk
+
 WORKDIR /
 
 COPY --from=0 /tmp/0-db-fs/zdbfs /bin/
