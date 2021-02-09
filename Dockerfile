@@ -30,8 +30,7 @@ RUN ln -s /usr/include/hiredis /usr/include/x86_64-linux-musl/ && \
 RUN git clone https://github.com/threefoldtech/0-db-fs
 RUN git clone https://github.com/threefoldtech/0-db
 RUN git clone https://github.com/threefoldtech/0-stor_v2
-# RUN git clone https://github.com/crystaluniverse/publishtools
-RUN git clone https://github.com/maxux/publishtools -b vredis2-fix
+RUN git clone https://github.com/crystaluniverse/publishtools
 RUN git clone https://github.com/minio/minio
 
 RUN cd /tmp/0-db-fs && \
