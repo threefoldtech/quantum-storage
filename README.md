@@ -59,6 +59,8 @@ quick and easy test feature
 - `nscreate.v`: a small V program to create needed namespace inside 0-db needed by 0-db-fs
 - `zdb-hook.sh`: hook script attached to 0-db, which is the 'user-defined' way to send data to 0-stor-v2 and
 to retreive data aswell
+- `host.sh`: build script to build minimal stuff on an Ubuntu host
+- `host-init.sh`: init script to run host build binaries
 
 # Execution
 
