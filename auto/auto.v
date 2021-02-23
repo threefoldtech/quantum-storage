@@ -4,6 +4,12 @@ import os
 import net.http
 import json
 
+struct Resources {
+	zflist string  // zflist binary url
+	zdbfs string   // zdbfs flist url
+	zstor string   // zstor sample config url
+}
+
 struct ZError {
 	function string
 	message string
@@ -44,16 +50,20 @@ fn prefix(dir string) {
 	}
 }
 
-fn download(zflist string, zdbfs string) {
-	zflist_bin := base(zflist)
-	zdbfs_file := base(zdbfs)
+fn download(resources Resources) {
+	zflist_bin := base(resources.zflist)
+	zdbfs_file := base(resources.zdbfs)
+	zstor_file := base(resources.zstor)
 
 	println("[+] downloading: " + zflist_bin)
-	http.download_file(zflist, zflist_bin) or { eprintln(err) }
+	http.download_file(resources.zflist, zflist_bin) or { eprintln(err) }
 	os.chmod(zflist_bin, 0o775)
 
 	println("[+] downloading: " + zdbfs_file)
-	http.download_file(zdbfs, zdbfs_file) or { eprintln(err) }
+	http.download_file(resources.zdbfs, zdbfs_file) or { eprintln(err) }
+
+	println("[+] downloading: " + zstor_file)
+	http.download_file(resources.zstor, zstor_file) or { eprintln(err) }
 }
 
 fn zflist_json(line string, progress bool) {
@@ -95,9 +105,13 @@ fn zflist_run(binary string, args []string, progress bool) bool {
 	return true
 }
 
-fn extract(rootdir string, zflist string, zdbfs string) {
-	zflist_bin := base(zflist)
-	zdbfs_file := base(zdbfs)
+fn extract(rootdir string, resources Resources) {
+	zflist_bin := base(resources.zflist)
+	zdbfs_file := base(resources.zdbfs)
+	zstor_file := base(resources.zstor)
+
+	println("[+] installing: zstor-v2 configuration")
+	os.cp(zstor_file, rootdir + "/etc/zstor-default.toml") or { eprintln(err) }
 
 	os.setenv("ZFLIST_MNT", rootdir + "/var/tmp/flistmnt", true)
 	os.setenv("ZFLIST_JSON", "1", true)
@@ -196,9 +210,11 @@ fn filesystem(rootdir string) {
 }
 
 fn main() {
-	// resources url
-	zflist := "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu"
-	zdbfs := "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.2-linux-gnu.flist"
+	resources := Resources{
+		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
+		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.2-linux-gnu.flist",
+		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/zstor-sample-ipv4.toml",
+	}
 
 	home := os.getenv("HOME")
 	rootdir := os.join_path(home, ".threefold")
@@ -207,8 +223,8 @@ fn main() {
 	prefix(rootdir)
 	os.chdir(rootdir)
 
-	download(zflist, zdbfs)
-	extract(rootdir, zflist, zdbfs)
+	download(resources)
+	extract(rootdir, resources)
 
 	databases(rootdir)
 	filesystem(rootdir)
