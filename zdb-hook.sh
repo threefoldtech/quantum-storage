@@ -1,10 +1,11 @@
 #!/bin/sh
 set -ex
 
+prefix="/"
 action="$1"
 instance="$2"
-zstorconf="/etc/zstor-default.toml"
-zstorbin="/bin/zstor"
+zstorconf="${prefix}/etc/zstor-default.toml"
+zstorbin="${prefix}/bin/zstor"
 
 if [ "$action" == "jump-index" ]; then
     # skip index saving, file are mutable
@@ -38,4 +39,3 @@ fi
 
 # unknown action
 exit 1
-
