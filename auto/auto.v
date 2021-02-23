@@ -99,16 +99,21 @@ fn extract(rootdir string, zflist string, zdbfs string) {
 	zflist_bin := base(zflist)
 	zdbfs_file := base(zdbfs)
 
-	os.setenv("ZFLIST_MNT", os.join_path(rootdir, "var", "tmp", "flistmnt"), true)
+	os.setenv("ZFLIST_MNT", rootdir + "/var/tmp/flistmnt", true)
 	os.setenv("ZFLIST_JSON", "1", true)
 	os.setenv("ZFLIST_PROGRESS", "1", true)
 
 	zflist_run("./" + zflist_bin, ["open", zdbfs_file], false)
 	zflist_run("./" + zflist_bin, ["metadata", "backend", "--host", "hub.grid.tf", "--port", "9900"], false)
 
-	files := ["/bin/etcd", "/bin/zdb", "/bin/zdbfs", "/bin/zstor-v2", "/lib/libfuse3.so.3.9.0", "/var/lib/zdb-hook.sh"]
-
-	// FIXME: add hook extraction
+	files := [
+		"/bin/etcd",
+		"/bin/zdb",
+		"/bin/zdbfs",
+		"/bin/zstor-v2",
+		"/lib/libfuse3.so.3.9.0",
+		"/var/lib/zdb-hook.sh"
+	]
 
 	for file in files {
 		print("[+] extracting: " + file + " ")
@@ -120,6 +125,11 @@ fn extract(rootdir string, zflist string, zdbfs string) {
 	}
 
 	zflist_run("./" + zflist_bin, ["close"], false)
+
+	// symlink library version
+	os.chdir(os.join_path(rootdir, "lib"))
+	os.symlink("libfuse3.so.3.9.0", "libfuse3.so.3") or { return }
+	os.chdir(rootdir)
 }
 
 fn databases(rootdir string) {
@@ -139,6 +149,7 @@ fn databases(rootdir string) {
 		"--background"
 	]
 
+	// set zdb-hook prefix environment
 	zenvs := map{
 		"ZDBFS_PREFIX": rootdir,
 	}
@@ -174,9 +185,12 @@ fn filesystem(rootdir string) {
 		rootdir + "/mnt/zdbfs"
 	]
 
-	// FIXME: set environment for LD PATH
+	envs := map{
+		"LD_LIBRARY_PATH": rootdir + "/lib"
+	}
 
 	ps.set_args(args)
+	ps.set_environment(envs)
 	ps.run()
 	ps.wait()
 }
