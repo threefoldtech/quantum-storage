@@ -32,6 +32,7 @@ fn prefix(dir string) {
 		os.join_path(dir, "var"),
 		os.join_path(dir, "var", "cache"),
 		os.join_path(dir, "var", "tmp"),
+		os.join_path(dir, "var", "lib"),
 		os.join_path(dir, "mnt"),
 		os.join_path(dir, "mnt", "zdbfs")
 	]
@@ -105,7 +106,7 @@ fn extract(rootdir string, zflist string, zdbfs string) {
 	zflist_run("./" + zflist_bin, ["open", zdbfs_file], false)
 	zflist_run("./" + zflist_bin, ["metadata", "backend", "--host", "hub.grid.tf", "--port", "9900"], false)
 
-	files := ["/bin/etcd", "/bin/zdb", "/bin/zdbfs", "/bin/zstor-v2", "/lib/libfuse3.so.3.9.0"]
+	files := ["/bin/etcd", "/bin/zdb", "/bin/zdbfs", "/bin/zstor-v2", "/lib/libfuse3.so.3.9.0", "/var/lib/zdb-hook.sh"]
 
 	// FIXME: add hook extraction
 
@@ -121,25 +122,46 @@ fn extract(rootdir string, zflist string, zdbfs string) {
 	zflist_run("./" + zflist_bin, ["close"], false)
 }
 
-fn database(rootdir string) {
+fn databases(rootdir string) {
+	//
+	// 0-db
+	//
 	println("[+] starting 0-db local cache")
 
 	// FIXME: check for already running
 
-	mut ps := os.new_process(rootdir + "/bin/zdb")
-	args := [
+	mut zdb := os.new_process(rootdir + "/bin/zdb")
+	zargs := [
 		"--index", rootdir + "/var/tmp/zdb/index",
 		"--data", rootdir + "/var/tmp/zdb/data",
+		"--hook", rootdir + "/var/lib/zdb-hook.sh",
 		"--mode", "seq",
 		"--background"
 	]
 
-	// FIXME: add hook
+	zenvs := map{
+		"ZDBFS_PREFIX": rootdir,
+	}
 
-	ps.set_args(args)
-	ps.set_redirect_stdio()
-	ps.run()
-	ps.wait()
+	zdb.set_args(zargs)
+	zdb.set_environment(zenvs)
+	zdb.set_redirect_stdio()
+	zdb.run()
+	zdb.wait()
+
+	//
+	// etcd
+	//
+	println("[+] starting local etcd server")
+
+	mut etcd := os.new_process(rootdir + "/bin/etcd")
+	eargs := [
+		"--data-dir", rootdir + "/var/tmp/etcd"
+	]
+
+	etcd.set_args(eargs)
+	etcd.set_redirect_stdio()
+	etcd.run()
 }
 
 fn filesystem(rootdir string) {
@@ -174,9 +196,6 @@ fn main() {
 	download(zflist, zdbfs)
 	extract(rootdir, zflist, zdbfs)
 
-	// FIXME: add etcd
-	// FIXME: trigger hook for zstor
-
-	database(rootdir)
+	databases(rootdir)
 	filesystem(rootdir)
 }
