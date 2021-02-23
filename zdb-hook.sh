@@ -1,7 +1,7 @@
 #!/bin/sh
 set -ex
 
-prefix="/"
+prefix="${ZDBFS_PREFIX:-/}"
 action="$1"
 instance="$2"
 zstorconf="${prefix}/etc/zstor-default.toml"
