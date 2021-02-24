@@ -24,8 +24,9 @@ if [ "$action" == "jump-data" ]; then
     ${zstorbin} -c ${zstorconf} store --file "$3"
 
     if [ $? == 0 ]; then
-        echo "File saved, cleanup local file: $3"
-        rm -f "$3"
+        # echo "File saved, cleanup local file: $3"
+        # rm -f "$3"
+        echo "Skipping deletion"
     fi
 
     exit 0
