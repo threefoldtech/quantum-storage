@@ -141,7 +141,7 @@ fn extract(rootdir string, resources Resources) {
 		"/bin/zdb",
 		"/bin/zdbfs",
 		"/bin/zstor-v2",
-		"/lib/libfuse3.so.3.9.0",
+		"/lib/libfuse3.so.3.10.2",
 		"/var/lib/zdb-hook.sh"
 	]
 
@@ -158,7 +158,12 @@ fn extract(rootdir string, resources Resources) {
 
 	// symlink library version
 	os.chdir(os.join_path(rootdir, "lib"))
-	os.symlink("libfuse3.so.3.9.0", "libfuse3.so.3") or { return }
+	os.symlink("libfuse3.so.3.10.2", "libfuse3.so.3") or { return }
+
+	// symlink zstor binary name
+	os.chdir(os.join_path(rootdir, "bin"))
+	os.symlink("zstor-v2", "zstor") or { return }
+
 	os.chdir(rootdir)
 }
 
@@ -200,6 +205,7 @@ fn zdb_init(rootdir string) {
 		"--index", rootdir + "/var/tmp/zdb/index",
 		"--data", rootdir + "/var/tmp/zdb/data",
 		"--hook", rootdir + "/var/lib/zdb-hook.sh",
+		"--datasize", "33554432",
 		"--mode", "seq",
 		"--background"
 	]
