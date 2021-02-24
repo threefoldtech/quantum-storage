@@ -30,6 +30,17 @@ struct ZResponse {
 	response Response
 }
 
+fn mount_check(rootdir string) bool {
+	check := os.exec("mountpoint " + rootdir + "/mnt/zdbfs") or { return true }
+
+	// target is a mountpoint
+	if check.exit_code == 0 {
+		return false
+	}
+
+	return true
+}
+
 fn prefix(dir string) {
 	dirs := [
 		dir,
@@ -101,6 +112,10 @@ fn zflist_run(binary string, args []string, progress bool) bool {
 	for ps.is_alive() {
 		line := ps.stdout_read()
 		zflist_json(line, progress)
+	}
+
+	if ps.code == 1 {
+		println("(failed)")
 	}
 
 	return true
@@ -244,6 +259,11 @@ fn main() {
 	home := os.getenv("HOME")
 	rootdir := os.join_path(home, ".threefold")
 	println("[+] prefix: " + rootdir)
+
+	if mount_check(rootdir) == false {
+		println("[-] planetary filesystem already mounted")
+		return
+	}
 
 	prefix(rootdir)
 	os.chdir(rootdir)
