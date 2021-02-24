@@ -1,6 +1,7 @@
 module main
 
 import os
+import net
 import net.http
 import json
 
@@ -146,13 +147,38 @@ fn extract(rootdir string, resources Resources) {
 	os.chdir(rootdir)
 }
 
-fn databases(rootdir string) {
-	//
-	// 0-db
-	//
-	println("[+] starting 0-db local cache")
+fn zdb_precheck(rootdir string) bool {
+	println("[+] checking for a local 0-db")
 
-	// FIXME: check for already running
+	mut conn := net.dial_tcp("127.0.0.1:9900") or {
+		/* this is ignored, bug filled */
+		return false
+	}
+
+	conn.write_str("#1") or {
+		if err == "net: socket error: 111" {
+			// connection refused
+			return false
+		}
+
+		// we return false anyway on error
+		return false
+	}
+
+	return true
+}
+
+fn etcd_precheck(rootdir string) bool {
+	println("[+] checking for local etcd server")
+
+	http.get("http://127.0.0.1:2379") or { return false }
+	println("[+] local etcd already available")
+
+	return true
+}
+
+fn zdb_init(rootdir string) {
+	println("[+] starting 0-db local cache")
 
 	mut zdb := os.new_process(rootdir + "/bin/zdb")
 	zargs := [
@@ -173,10 +199,9 @@ fn databases(rootdir string) {
 	zdb.set_redirect_stdio()
 	zdb.run()
 	zdb.wait()
+}
 
-	//
-	// etcd
-	//
+fn etcd_init(rootdir string) {
 	println("[+] starting local etcd server")
 
 	mut etcd := os.new_process(rootdir + "/bin/etcd")
@@ -226,6 +251,13 @@ fn main() {
 	download(resources)
 	extract(rootdir, resources)
 
-	databases(rootdir)
+	if zdb_precheck(rootdir) == false {
+		zdb_init(rootdir)
+	}
+
+	if etcd_precheck(rootdir) == false {
+		etcd_init(rootdir)
+	}
+
 	filesystem(rootdir)
 }
