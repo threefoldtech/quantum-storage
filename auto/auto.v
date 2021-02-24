@@ -8,6 +8,8 @@ import json
 struct Resources {
 	zflist string  // zflist binary url
 	zdbfs string   // zdbfs flist url
+
+mut:
 	zstor string   // zstor sample config url
 }
 
@@ -74,8 +76,22 @@ fn download(resources Resources) {
 	println("[+] downloading: " + zdbfs_file)
 	http.download_file(resources.zdbfs, zdbfs_file) or { eprintln(err) }
 
-	println("[+] downloading: " + zstor_file)
-	http.download_file(resources.zstor, zstor_file) or { eprintln(err) }
+	// download zstor config if it's an url
+	if resources.zstor.substr(0, 4) == "http" {
+		println("[+] downloading: " + zstor_file)
+		http.download_file(resources.zstor, zstor_file) or { eprintln(err) }
+
+	} else {
+		// copy file location provided
+		mut source := resources.zstor
+
+		if source.substr(0, 1) != "/" {
+			source = os.resource_abs_path(resources.zstor)
+		}
+
+		println("[+] copying: " + source)
+		os.cp(source, zstor_file) or { eprintln(err) exit(1) }
+	}
 }
 
 fn zflist_json(line string, progress bool) {
@@ -256,7 +272,7 @@ fn filesystem(rootdir string) {
 }
 
 fn main() {
-	resources := Resources{
+	mut resources := Resources{
 		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
 		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.2-linux-gnu.flist",
 		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/zstor-sample-ipv4.toml",
@@ -266,13 +282,18 @@ fn main() {
 	rootdir := os.join_path(home, ".threefold")
 	println("[+] prefix: " + rootdir)
 
+	if os.args.len > 1 {
+		resources.zstor = os.args[1]
+		println("[+] configuration file: " + resources.zstor)
+	}
+
 	if mount_check(rootdir) == false {
 		println("[-] planetary filesystem already mounted")
 		return
 	}
 
 	prefix(rootdir)
-	os.chdir(rootdir)
+	os.chdir(rootdir + "/var/cache")
 
 	download(resources)
 	extract(rootdir, resources)
