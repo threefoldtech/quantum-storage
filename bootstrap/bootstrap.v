@@ -259,6 +259,7 @@ fn filesystem(rootdir string) bool {
 	args := [
 		"-o", "autons",
 		"-o", "background",
+		"-o", "allow_others",
 		rootdir + "/mnt/zdbfs"
 	]
 
