@@ -157,8 +157,9 @@ fn extract(rootdir string, resources Resources) {
 		"/bin/zdb",
 		"/bin/zdbfs",
 		"/bin/zstor-v2",
+		"/bin/fusermount3"
 		"/lib/libfuse3.so.3.10.2",
-		"/var/lib/zdb-hook.sh"
+		"/var/lib/zdb-hook.sh",
 	]
 
 	for file in files {
@@ -262,7 +263,8 @@ fn filesystem(rootdir string) {
 	]
 
 	envs := map{
-		"LD_LIBRARY_PATH": rootdir + "/lib"
+		"LD_LIBRARY_PATH": rootdir + "/lib",
+		"PATH": rootdir + "/bin"
 	}
 
 	ps.set_args(args)
