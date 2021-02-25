@@ -252,7 +252,7 @@ fn etcd_init(rootdir string) {
 	etcd.run()
 }
 
-fn filesystem(rootdir string) {
+fn filesystem(rootdir string) bool {
 	println("[+] starting planetary filesystem")
 
 	mut ps := os.new_process(rootdir + "/bin/zdbfs")
@@ -262,15 +262,21 @@ fn filesystem(rootdir string) {
 		rootdir + "/mnt/zdbfs"
 	]
 
-	envs := map{
+	mut envs := map{
 		"LD_LIBRARY_PATH": rootdir + "/lib",
-		"PATH": rootdir + "/bin"
+	}
+
+	os.exec("fusermount3 --version") or {
+		envs["PATH"] = rootdir + "/bin"
+		os.Result{}
 	}
 
 	ps.set_args(args)
 	ps.set_environment(envs)
 	ps.run()
 	ps.wait()
+
+	return true
 }
 
 fn main() {
