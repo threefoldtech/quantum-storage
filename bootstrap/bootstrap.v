@@ -187,7 +187,7 @@ fn zdb_precheck(rootdir string) bool {
 	println("[+] checking for a local 0-db")
 
 	mut conn := net.dial_tcp("127.0.0.1:9900") or {
-		/* this is ignored, bug filled */
+		// this is ignored, bug filled
 		return false
 	}
 
