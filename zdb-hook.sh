@@ -7,6 +7,11 @@ instance="$2"
 zstorconf="${prefix}/etc/zstor-default.toml"
 zstorbin="${prefix}/bin/zstor"
 
+if [ "$action" == "ready" ]; then
+    ${zstorbin} -c ${zstorconf} test
+    exit $?
+fi
+
 if [ "$action" == "jump-index" ]; then
     # skip index saving, file are mutable
     # ${zstorbin} -c ${zstorconf} store --file "$3"
