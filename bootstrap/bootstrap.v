@@ -94,28 +94,32 @@ fn download(resources Resources) {
 	}
 }
 
-fn zflist_json(line string, progress bool) {
-	if line.trim(" \n") == "" {
+fn zflist_json(buffer string, progress bool) {
+	if buffer.trim(" \n") == "" {
 		return
 	}
 
-	data := json.decode(ZResponse, line) or { eprintln("nope") eprintln(err) exit(1) }
+	lines := buffer.split("\n")
 
-	// success response
-	if data.success == true {
-		if progress == true {
-			// progression ended
-			println(" ok")
+	for line in lines {
+		data := json.decode(ZResponse, line) or { eprintln("nope") eprintln(err) exit(1) }
+
+		// success response
+		if data.success == true {
+			if progress == true {
+				// progression ended
+				println(" ok")
+			}
+
+			return
 		}
 
-		return
-	}
-
-	// progression step
-	if data.status == "progress" {
-		// dot progression
-		print(".")
-		return
+		// progression step
+		if data.status == "progress" {
+			// dot progression
+			print(".")
+			return
+		}
 	}
 }
 
