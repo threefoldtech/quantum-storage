@@ -193,7 +193,7 @@ fn zdb_precheck(rootdir string) bool {
 	}
 
 	conn.write_str("#1") or {
-		if err == net.err_new_socket_failed {
+		if err.code == net.err_new_socket_failed.code {
 			// connection refused
 			return false
 		}
