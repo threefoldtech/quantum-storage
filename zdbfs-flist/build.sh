@@ -1,6 +1,8 @@
 #/bin/bash
 set -ex
 
+# Ubuntu 18.04
+
 prefix="${HOME}/zdbfs-prefix-root"
 
 apt-get update
@@ -11,6 +13,8 @@ mkdir -p "${prefix}"
 mkdir -p "${prefix}/bin"
 mkdir -p "${prefix}/lib"
 mkdir -p "${prefix}/var/lib"
+
+cp ../lib/zdb-hook.sh "${prefix}/var/lib/"
 
 pushd "/tmp/"
 
@@ -54,8 +58,6 @@ libfuse() {
 }
 
 libfuse
-
-# add zdb-hook.sh to
 
 tar -zcvpf /tmp/zdbfs-image.tar.gz -C ${prefix} .
 
