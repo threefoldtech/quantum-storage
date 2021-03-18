@@ -102,6 +102,10 @@ fn zflist_json(buffer string, progress bool) {
 	lines := buffer.split("\n")
 
 	for line in lines {
+		if line == "" {
+			return
+		}
+
 		data := json.decode(ZResponse, line) or { eprintln("nope") eprintln(err) exit(1) }
 
 		// success response
@@ -111,14 +115,14 @@ fn zflist_json(buffer string, progress bool) {
 				println(" ok")
 			}
 
-			return
+			continue
 		}
 
 		// progression step
 		if data.status == "progress" {
 			// dot progression
 			print(".")
-			return
+			continue
 		}
 	}
 }
