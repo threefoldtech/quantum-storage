@@ -222,7 +222,7 @@ fn etcd_precheck(rootdir string) bool {
 	return true
 }
 
-fn zdb_init(rootdir string) {
+fn zdb_init(rootdir string) bool {
 	println("[+] starting 0-db local cache")
 
 	mut zdb := os.new_process(rootdir + "/bin/zdb")
@@ -245,6 +245,13 @@ fn zdb_init(rootdir string) {
 	zdb.set_redirect_stdio()
 	zdb.run()
 	zdb.wait()
+
+	if zdb.code != 0 {
+		eprintln("[-] could not start 0-db, some precheck failed")
+		return false
+	}
+
+	return true
 }
 
 fn etcd_init(rootdir string) {
@@ -315,12 +322,14 @@ fn main() {
 	download(resources)
 	extract(rootdir, resources)
 
-	if zdb_precheck(rootdir) == false {
-		zdb_init(rootdir)
-	}
-
 	if etcd_precheck(rootdir) == false {
 		etcd_init(rootdir)
+	}
+
+	if zdb_precheck(rootdir) == false {
+		if zdb_init(rootdir) == false {
+			return
+		}
 	}
 
 	filesystem(rootdir)
