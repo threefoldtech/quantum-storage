@@ -299,7 +299,7 @@ fn main() {
 	mut resources := Resources{
 		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
 		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.3-linux-gnu.flist",
-		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/zstor-sample-ipv4.toml",
+		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-ipv4.toml",
 	}
 
 	home := os.getenv("HOME")
