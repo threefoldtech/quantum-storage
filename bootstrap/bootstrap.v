@@ -297,6 +297,9 @@ fn filesystem(rootdir string) bool {
 }
 
 fn main() {
+	version := "0.0.2"
+	println("[+] planetary filesystem boostrap v" + version)
+
 	mut resources := Resources{
 		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
 		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.3-linux-gnu.flist",
