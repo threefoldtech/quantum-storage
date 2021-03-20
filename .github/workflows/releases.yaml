@@ -28,7 +28,7 @@ jobs:
           export PATH=/opt/v:$PATH
           pushd bootstrap
 
-          version=$(grep "version :=" bootstrap/bootstrap.v | awk '{ print $3 }' | sed s/'"'//g)
+          version=$(grep "version :=" bootstrap.v | awk '{ print $3 }' | sed s/'"'//g)
 
           v -o bootstrap.c bootstrap.v
           gcc bootstrap.c /opt/v/thirdparty/cJSON/*.c -o bootstrap -I/opt/v/thirdparty/cJSON/ \
