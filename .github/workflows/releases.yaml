@@ -1,0 +1,46 @@
+name: Build release
+# on:  
+#   release:
+#     types: [created]
+on: [push]
+jobs:
+  generate:
+    name: Create release artifacts
+    runs-on: ubuntu-16.04
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@master
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip build-essential libssl-dev
+
+      - name: Install V
+        run: |
+          pushd /opt
+          wget https://github.com/vlang/v/releases/latest/download/v_linux.zip
+          unzip v_linux.zip
+          popd
+
+      - name: Building bootstrap
+        run: |
+          export PATH=/opt/v:$PATH
+          pushd bootstrap
+
+          version=$(grep "version :=" bootstrap/bootstrap.v | awk '{ print $3 }' | sed s/'"'//g)
+
+          v -o bootstrap.c bootstrap.v
+          gcc bootstrap.c /opt/v/thirdparty/cJSON/*.c -o bootstrap -I/opt/v/thirdparty/cJSON/ \
+            -Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic -ldl -lpthread
+
+          popd
+
+          cp bootstrap/bootstrap planetaryfs-bootstrap-${version}-linux-amd64
+
+      - name: Upload the artifacts
+        uses: skx/github-action-publish-binaries@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: 'planetaryfs-bootstrap-*-linux-amd64'
