@@ -230,7 +230,8 @@ fn zdb_init(rootdir string) bool {
 		"--index", rootdir + "/var/tmp/zdb/index",
 		"--data", rootdir + "/var/tmp/zdb/data",
 		"--hook", rootdir + "/var/lib/zdb-hook.sh",
-		"--datasize", "33554432",
+		"--datasize", "33554432",  // 32 MB
+		"--rotate", "900",  // 30 min
 		"--mode", "seq",
 		"--background"
 	]
