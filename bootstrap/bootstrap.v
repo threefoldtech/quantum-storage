@@ -165,6 +165,7 @@ fn extract(rootdir string, resources Resources) {
 		"/bin/zdb",
 		"/bin/zdbfs",
 		"/bin/zstor-v2",
+		"/bin/zstor-monitor",
 		"/bin/fusermount3"
 		"/lib/libfuse3.so.3.10.2",
 		"/var/lib/zdb-hook.sh",
@@ -302,7 +303,7 @@ fn main() {
 
 	mut resources := Resources{
 		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
-		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.3-linux-gnu.flist",
+		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.4-linux-gnu.flist",
 		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-ipv4.toml",
 	}
 
