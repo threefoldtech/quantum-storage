@@ -298,7 +298,7 @@ fn filesystem(rootdir string) bool {
 }
 
 fn main() {
-	version := "0.0.3"
+	version := "0.0.4"
 	println("[+] planetary filesystem boostrap v" + version)
 
 	mut resources := Resources{
