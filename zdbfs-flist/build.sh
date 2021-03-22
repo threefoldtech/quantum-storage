@@ -40,6 +40,8 @@ cp etcd-v3.4.14-linux-amd64/etcd "${prefix}/bin/etcd"
 popd
 
 libfuse() {
+    pushd /tmp
+
     wget https://github.com/libfuse/libfuse/releases/download/fuse-3.10.2/fuse-3.10.2.tar.xz
     tar -xf fuse-3.10.2.tar.xz
 
@@ -48,6 +50,8 @@ libfuse() {
     meson ..
     ninja
     ninja install
+
+    popd
 
     cp /usr/local/lib/x86_64-linux-gnu/libfuse3.so.3.10.2 "${prefix}/lib/libfuse3.so.3.10.2"
     cp /usr/local/bin/fusermount3 "${prefix}/bin/fusermount3"
