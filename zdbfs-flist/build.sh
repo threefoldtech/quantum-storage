@@ -19,20 +19,20 @@ cp ../lib/zdb-hook.sh "${prefix}/var/lib/"
 pushd "/tmp/"
 
 wget https://github.com/etcd-io/etcd/releases/download/v3.4.14/etcd-v3.4.14-linux-amd64.tar.gz
-wget https://github.com/threefoldtech/0-stor_v2/releases/download/v0.2.0-rc.1/zstor_v2-x86_64-linux-musl
-wget https://github.com/threefoldtech/0-db/releases/download/v1.3.0-rc1/zdb-1.3.0-rc1-linux-amd64-gnu
+wget https://github.com/threefoldtech/0-stor_v2/releases/download/v0.2.0/zstor_monitor-x86_64-linux-musl
+wget https://github.com/threefoldtech/0-db/releases/download/v1.3.1/zdb-1.3.1-linux-amd64-gnu
 wget https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu
 wget https://github.com/threefoldtech/0-db-fs/releases/download/v0.1.3/zdbfs-0.1.3-amd64-linux-gnu
 
 tar -xvf etcd-v3.4.14-linux-amd64.tar.gz
 
 chmod +x zstor_v2-x86_64-linux-musl
-chmod +x zdb-1.3.0-rc1-linux-amd64-gnu
+chmod +x zdb-1.3.1-linux-amd64-gnu
 chmod +x zflist-2.0.1-amd64-linux-gnu
 chmod +x zdbfs-0.1.3-amd64-linux-gnu
 
 cp zstor_v2-x86_64-linux-musl "${prefix}/bin/zstor-v2"
-cp zdb-1.3.0-rc1-linux-amd64-gnu "${prefix}/bin/zdb"
+cp zdb-1.3.1-linux-amd64-gnu "${prefix}/bin/zdb"
 cp zflist-2.0.1-amd64-linux-gnu "${prefix}/bin/zflist"
 cp zdbfs-0.1.3-amd64-linux-gnu "${prefix}/bin/zdbfs"
 cp etcd-v3.4.14-linux-amd64/etcd "${prefix}/bin/etcd"
