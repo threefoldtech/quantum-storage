@@ -13,8 +13,23 @@ if [ "$action" == "ready" ]; then
 fi
 
 if [ "$action" == "jump-index" ]; then
-    # skip index saving, file are mutable
-    # ${zstorbin} -c ${zstorconf} store --file "$3"
+    namespace=$(basename $(dirname $3))
+    if [ "${namespace}" == "zdbfs-temp" ]; then
+        # skipping temporary namespace
+        exit 0
+    fi
+
+    tmpdir=$(mktemp -p /tmp -d zdb.hook.XXXXXXXX.tmp)
+    dirbase=$(dirname $3)
+
+    # upload dirty index files
+    for dirty in $5; do
+        file=$(printf "zdb-index-%05d" $dirty)
+        cp ${dirbase}/${file} ${tmpdir}/
+    done
+
+    ${zstorbin} -c ${zstorconf} store -d -f ${tmpdir} -k ${dirbase} &
+
     exit 0
 fi
 
@@ -27,12 +42,6 @@ if [ "$action" == "jump-data" ]; then
 
     # backup data file
     ${zstorbin} -c ${zstorconf} store --file "$3"
-
-    if [ $? == 0 ]; then
-        # echo "File saved, cleanup local file: $3"
-        # rm -f "$3"
-        echo "Skipping deletion"
-    fi
 
     exit 0
 fi
