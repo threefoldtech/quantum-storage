@@ -28,7 +28,7 @@ if [ "$action" == "jump-index" ]; then
         cp ${dirbase}/${file} ${tmpdir}/
     done
 
-    ${zstorbin} -c ${zstorconf} store -s -d -f ${tmpdir} -k ${dirbase} &
+    nice ${zstorbin} -c ${zstorconf} store -s -d -f ${tmpdir} -k ${dirbase} &
 
     exit 0
 fi
@@ -41,7 +41,7 @@ if [ "$action" == "jump-data" ]; then
     fi
 
     # backup data file
-    ${zstorbin} -c ${zstorconf} store -s --file "$3"
+    nice ${zstorbin} -c ${zstorconf} store -s --file "$3"
 
     exit 0
 fi
