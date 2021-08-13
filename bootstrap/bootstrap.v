@@ -33,7 +33,7 @@ struct ZResponse {
 }
 
 fn mount_check(rootdir string) bool {
-	check := os.exec("mountpoint " + rootdir + "/mnt/zdbfs") or { return true }
+	check := os.execute("mountpoint " + rootdir + "/mnt/zdbfs")
 
 	// target is a mountpoint
 	if check.exit_code == 0 {
@@ -284,7 +284,8 @@ fn filesystem(rootdir string) bool {
 		"LD_LIBRARY_PATH": rootdir + "/lib",
 	}
 
-	os.exec("fusermount3 --version") or {
+	check := os.execute("fusermount3 --version")
+	if check.exit_code != 0 {
 		envs["PATH"] = rootdir + "/bin"
 		os.Result{}
 	}
