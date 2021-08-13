@@ -4,6 +4,7 @@ import os
 import net
 import net.http
 import json
+import regex
 
 struct Resources {
 	zflist string  // zflist binary url
@@ -268,14 +269,34 @@ fn filesystem(rootdir string) bool {
 	return true
 }
 
+fn config_set(config string, name string, value string) string {
+	query := r'(' + name + r' = )("[\w_/\-.]+")'
+
+	mut re := regex.regex_opt(query) or { panic(err) }
+	res := re.replace(config, r'\0"' + value + r'"')
+
+	return res
+}
+
+fn config_parser(path string, rootdir string) ? string {
+	mut data := os.read_file(path)?
+
+	data = config_set(data, "root", rootdir)
+	data = config_set(data, "socket", rootdir + "/var/tmp/zstor.sock")
+	data = config_set(data, "zdb_data_dir_path", rootdir + "/var/tmp/zdb/data")
+
+	return data
+}
+
 fn main() {
-	version := "0.0.4"
+	version := "0.0.9"
 	println("[+] planetary filesystem boostrap v" + version)
 
 	mut resources := Resources{
 		zflist: "https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu",
-		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.4-linux-gnu.flist",
-		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-ipv4.toml",
+		// zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-0.1.4-linux-gnu.flist",
+		zdbfs: "https://hub.grid.tf/maxux42.3bot/zdbfs-image.flist",
+		zstor: "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-local.toml",
 	}
 
 	home := os.getenv("HOME")
@@ -298,10 +319,10 @@ fn main() {
 	download(resources)
 	extract(rootdir, resources)
 
-	if etcd_precheck(rootdir) == false {
-		etcd_init(rootdir)
-	}
+	config := config_parser(rootdir + "/etc/zstor-default.toml", rootdir)?
+	println(config)
 
+	/*
 	if zdb_precheck(rootdir) == false {
 		if zdb_init(rootdir) == false {
 			return
@@ -309,4 +330,5 @@ fn main() {
 	}
 
 	filesystem(rootdir)
+	*/
 }
