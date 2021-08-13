@@ -105,7 +105,7 @@ fn zflist_json(buffer string, progress bool) {
 			return
 		}
 
-		data := json.decode(ZResponse, line) or { eprintln("nope") eprintln(err) exit(1) }
+		data := json.decode(ZResponse, line) or { eprintln("zflist error") eprintln(err) exit(1) }
 
 		// success response
 		if data.success == true {
@@ -195,7 +195,7 @@ fn zdb_precheck(rootdir string) bool {
 		return false
 	}
 
-	conn.write_str("#1") or {
+	conn.write_string("#1") or {
 		if err.code == net.err_new_socket_failed.code {
 			// connection refused
 			return false
@@ -232,9 +232,7 @@ fn zdb_init(rootdir string) bool {
 	]
 
 	// set zdb-hook prefix environment
-	zenvs := map{
-		"ZDBFS_PREFIX": rootdir,
-	}
+	zenvs := {"ZDBFS_PREFIX": rootdir}
 
 	zdb.set_args(zargs)
 	zdb.set_environment(zenvs)
@@ -311,7 +309,7 @@ fn main() {
 
 	if mount_check(rootdir) == false {
 		println("[-] planetary filesystem already mounted")
-		return
+		exit(1)
 	}
 
 	prefix(rootdir)
