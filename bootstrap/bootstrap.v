@@ -160,11 +160,9 @@ fn extract(rootdir string, resources Resources) {
 	zflist_run("./" + zflist_bin, ["metadata", "backend", "--host", "hub.grid.tf", "--port", "9900"], false)
 
 	files := [
-		"/bin/etcd",
 		"/bin/zdb",
 		"/bin/zdbfs",
 		"/bin/zstor-v2",
-		"/bin/zstor-monitor",
 		"/bin/fusermount3"
 		"/var/lib/zdb-hook.sh",
 	]
@@ -208,15 +206,6 @@ fn zdb_precheck(rootdir string) bool {
 	return true
 }
 
-fn etcd_precheck(rootdir string) bool {
-	println("[+] checking for local etcd server")
-
-	http.get("http://127.0.0.1:2379") or { return false }
-	println("[+] local etcd already available")
-
-	return true
-}
-
 fn zdb_init(rootdir string) bool {
 	println("[+] starting 0-db local cache")
 
@@ -248,17 +237,8 @@ fn zdb_init(rootdir string) bool {
 	return true
 }
 
-fn etcd_init(rootdir string) {
-	println("[+] starting local etcd server")
-
-	mut etcd := os.new_process(rootdir + "/bin/etcd")
-	eargs := [
-		"--data-dir", rootdir + "/var/tmp/etcd"
-	]
-
-	etcd.set_args(eargs)
-	etcd.set_redirect_stdio()
-	etcd.run()
+fn zstor_init() {
+	println("init")
 }
 
 fn filesystem(rootdir string) bool {
