@@ -1,0 +1,57 @@
+data_shards = 1
+parity_shards = 1
+redundant_groups = 1
+redundant_nodes = 1
+root = "/virtualroot"
+socket = "/tmp/zstor.sock"
+network = "Main"
+wallet_secret = "walletsecret"
+identity_id = 0
+identity_mnemonic = ""
+horizon_url = "https://my.horizon.server"
+prometheus_port = 9100
+zdb_data_dir_path = "/tmp/0-db/data"
+max_zdb_data_dir_size = 256000
+
+[encryption]
+algorithm = "AES"
+key = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "zdb"
+
+[meta.config]
+prefix = "debug-prefix"
+
+[meta.config.encryption]
+algorithm = "AES"
+key = "0101010101010101010101010101010101010101010101010101010101010101"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-meta-1"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-meta-2"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-meta-3"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-meta-4"
+
+[[groups]]
+[[groups.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-backend-1"
+
+[[groups.backends]]
+address = "127.0.0.1:9900"
+namespace = "zstor-backend-2"
+
