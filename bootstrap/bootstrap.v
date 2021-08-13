@@ -278,12 +278,17 @@ fn config_set(config string, name string, value string) string {
 	return res
 }
 
-fn config_parser(path string, rootdir string) ? string {
+fn config_update(path string, rootdir string) ? string {
+	// read original config file
 	mut data := os.read_file(path)?
 
+	// update settings
 	data = config_set(data, "root", rootdir)
 	data = config_set(data, "socket", rootdir + "/var/tmp/zstor.sock")
 	data = config_set(data, "zdb_data_dir_path", rootdir + "/var/tmp/zdb/data")
+
+	// overwrite config file
+	os.write_file(path, data)?
 
 	return data
 }
@@ -319,10 +324,9 @@ fn main() {
 	download(resources)
 	extract(rootdir, resources)
 
-	config := config_parser(rootdir + "/etc/zstor-default.toml", rootdir)?
-	println(config)
+	println("[+] updating: local zstor configuration file")
+	config_update(rootdir + "/etc/zstor-default.toml", rootdir)?
 
-	/*
 	if zdb_precheck(rootdir) == false {
 		if zdb_init(rootdir) == false {
 			return
@@ -330,5 +334,4 @@ fn main() {
 	}
 
 	filesystem(rootdir)
-	*/
 }
