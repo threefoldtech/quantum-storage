@@ -64,9 +64,9 @@ fn prefix(dir string) {
 }
 
 fn download(resources Resources) {
-	zflist_bin := base(resources.zflist)
-	zdbfs_file := base(resources.zdbfs)
-	zstor_file := base(resources.zstor)
+	zflist_bin := os.base(resources.zflist)
+	zdbfs_file := os.base(resources.zdbfs)
+	zstor_file := os.base(resources.zstor)
 
 	println("[+] downloading: " + zflist_bin)
 	http.download_file(resources.zflist, zflist_bin) or { eprintln(err) }
@@ -145,9 +145,9 @@ fn zflist_run(binary string, args []string, progress bool) bool {
 }
 
 fn extract(rootdir string, resources Resources) {
-	zflist_bin := base(resources.zflist)
-	zdbfs_file := base(resources.zdbfs)
-	zstor_file := base(resources.zstor)
+	zflist_bin := os.base(resources.zflist)
+	zdbfs_file := os.base(resources.zdbfs)
+	zstor_file := os.base(resources.zstor)
 
 	println("[+] installing: zstor-v2 configuration")
 	os.cp(zstor_file, rootdir + "/etc/zstor-default.toml") or { eprintln(err) }
