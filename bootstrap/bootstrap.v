@@ -48,7 +48,6 @@ fn prefix(dir string) {
 		dir,
 		os.join_path(dir, "bin"),
 		os.join_path(dir, "etc"),
-		os.join_path(dir, "lib"),
 		os.join_path(dir, "var"),
 		os.join_path(dir, "var", "cache"),
 		os.join_path(dir, "var", "tmp"),
@@ -167,7 +166,6 @@ fn extract(rootdir string, resources Resources) {
 		"/bin/zstor-v2",
 		"/bin/zstor-monitor",
 		"/bin/fusermount3"
-		"/lib/libfuse3.so.3.10.2",
 		"/var/lib/zdb-hook.sh",
 	]
 
@@ -181,10 +179,6 @@ fn extract(rootdir string, resources Resources) {
 	}
 
 	zflist_run("./" + zflist_bin, ["close"], false)
-
-	// symlink library version
-	os.chdir(os.join_path(rootdir, "lib"))
-	os.symlink("libfuse3.so.3.10.2", "libfuse3.so.3") or { return }
 
 	// symlink zstor binary name
 	os.chdir(os.join_path(rootdir, "bin"))
@@ -280,9 +274,7 @@ fn filesystem(rootdir string) bool {
 		rootdir + "/mnt/zdbfs"
 	]
 
-	mut envs := map{
-		"LD_LIBRARY_PATH": rootdir + "/lib",
-	}
+	mut envs := map[string]string{}
 
 	check := os.execute("fusermount3 --version")
 	if check.exit_code != 0 {
