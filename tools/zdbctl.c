@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
 #include <hiredis/hiredis.h>
 
 void diep(char *str) {
-    perror(str);
+    fprintf(stderr, "[-] %s: %s\n", str, strerror(errno));
     exit(EXIT_FAILURE);
 }
 
@@ -15,10 +17,10 @@ int main(int argc, char **argv) {
     printf("[+] zdb: connecting [%s, %d]\n", host, port);
 
     if(!(ctx = redisConnect(host, port)))
-        diep("zdb: connect: metadata");
+        diep("zdb: connect");
 
     if(ctx->err) {
-        printf("[-] zdb: %s", ctx->errstr);
+        printf("[-] zdb: %s\n", ctx->errstr);
         exit(EXIT_FAILURE);
     }
 
