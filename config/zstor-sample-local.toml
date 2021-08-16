@@ -31,27 +31,27 @@ algorithm = "AES"
 key = "0101010101010101010101010101010101010101010101010101010101010101"
 
 [[meta.config.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-meta-1"
 
 [[meta.config.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-meta-2"
 
 [[meta.config.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-meta-3"
 
 [[meta.config.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-meta-4"
 
 [[groups]]
 [[groups.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-backend-1"
 
 [[groups.backends]]
-address = "127.0.0.1:9900"
+address = "127.0.0.1:9901"
 namespace = "zstor-backend-2"
 
