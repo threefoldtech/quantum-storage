@@ -1,7 +1,7 @@
 data_shards = 1
 parity_shards = 1
-redundant_groups = 1
-redundant_nodes = 1
+redundant_groups = 0
+redundant_nodes = 0
 root = "/virtualroot"
 socket = "/tmp/zstor.sock"
 network = "Main"
