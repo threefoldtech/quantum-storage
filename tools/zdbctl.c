@@ -14,6 +14,12 @@ int main(int argc, char **argv) {
     char *host = "127.0.0.1";
     int port = 9900;
 
+    if(getenv("ZDBCTL_HOST"))
+        host = getenv("ZDBCTL_HOST");
+
+    if(getenv("ZDBCTL_PORT"))
+        port = atoi(getenv("ZDBCTL_PORT"));
+
     printf("[+] zdb: connecting [%s, %d]\n", host, port);
 
     if(!(ctx = redisConnect(host, port)))
