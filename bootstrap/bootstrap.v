@@ -191,6 +191,7 @@ fn zstor_precheck(rootdir string) bool {
 	println("[+] checking for a running zstor daemon")
 
 	if os.exists(rootdir + "/var/tmp/zstor.sock") {
+		println("[+] zstor is already running")
 		return true
 	}
 
@@ -209,16 +210,6 @@ fn zstor_init(rootdir string) bool {
 	zdb.set_args(zargs)
 	zdb.set_redirect_stdio()
 	zdb.run()
-	// zdb.wait()
-
-	println(zdb)
-
-	/*
-	if zdb.code != 0 {
-		eprintln("[-] could not start 0-db backend")
-		return false
-	}
-	*/
 
 	return true
 }
@@ -241,6 +232,7 @@ fn zdb_precheck(rootdir string, port int) bool {
 		return false
 	}
 
+	println("[+] local 0-db already running")
 	return true
 }
 
