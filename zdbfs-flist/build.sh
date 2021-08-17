@@ -17,7 +17,7 @@ cp ../lib/zdb-hook.sh "${prefix}/var/lib/"
 
 pushd "/tmp/"
 
-zstor_version="0.3.0-rc.4"
+zstor_version="0.3.0-rc.5"
 zdb_version="2.0.0-rc5"
 zdbfs_version="0.1.7"
 zflist_version="2.0.1"
