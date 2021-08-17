@@ -162,6 +162,7 @@ fn extract(rootdir string, resources Resources) {
 
 	files := [
 		"/bin/zdb",
+		"/bin/zdbctl",
 		"/bin/zdbfs",
 		"/bin/zstor-v2",
 		"/bin/fusermount3"
@@ -186,10 +187,46 @@ fn extract(rootdir string, resources Resources) {
 	os.chdir(rootdir)
 }
 
-fn zdb_precheck(rootdir string) bool {
+fn zstor_precheck(rootdir string) bool {
+	println("[+] checking for a running zstor daemon")
+
+	if os.exists(rootdir + "/var/tmp/zstor.sock") {
+		return true
+	}
+
+	return false
+}
+
+fn zstor_init(rootdir string) bool {
+	println("[+] starting zstor daemon")
+
+	mut zdb := os.new_process(rootdir + "/bin/zstor-v2")
+	zargs := [
+		"-c", rootdir + "/etc/zstor-default.toml",
+		"monitor"
+	]
+
+	zdb.set_args(zargs)
+	zdb.set_redirect_stdio()
+	zdb.run()
+	// zdb.wait()
+
+	println(zdb)
+
+	/*
+	if zdb.code != 0 {
+		eprintln("[-] could not start 0-db backend")
+		return false
+	}
+	*/
+
+	return true
+}
+
+fn zdb_precheck(rootdir string, port int) bool {
 	println("[+] checking for a local 0-db")
 
-	mut conn := net.dial_tcp("127.0.0.1:9900") or {
+	mut conn := net.dial_tcp("127.0.0.1:$port") or {
 		// this is ignored, bug filled
 		return false
 	}
@@ -207,7 +244,67 @@ fn zdb_precheck(rootdir string) bool {
 	return true
 }
 
-fn zdb_init(rootdir string) bool {
+fn zdb_local_init(rootdir string, port int) bool {
+	println("[+] starting 0-db local backend")
+
+	mut zdb := os.new_process(rootdir + "/bin/zdb")
+	zargs := [
+		"--index", rootdir + "/var/tmp/zdb/index-backend",
+		"--data", rootdir + "/var/tmp/zdb/data-backend",
+		"--port", "$port",
+		"--background"
+	]
+
+	zdb.set_args(zargs)
+	zdb.set_redirect_stdio()
+	zdb.run()
+	zdb.wait()
+
+	if zdb.code != 0 {
+		eprintln("[-] could not start 0-db backend")
+		return false
+	}
+
+	namespaces := ["zstor-meta-1", "zstor-meta-2", "zstor-meta-3", "zstor-meta-4", "zstor-backend-1", "zstor-backend-2"]
+
+	// create all namespaces
+	for namespace in namespaces {
+		mut zdbctl := os.new_process(rootdir + "/bin/zdbctl")
+		zenvs := {"ZDBCTL_PORT": "$port"}
+
+		zctlargs := ["NSNEW", namespace]
+
+		zdbctl.set_environment(zenvs)
+		zdbctl.set_redirect_stdio()
+		zdbctl.set_args(zctlargs)
+		zdbctl.run()
+		zdbctl.wait()
+	}
+
+	// set correct mode for namespaces
+	for namespace in namespaces {
+		mut zdbctl := os.new_process(rootdir + "/bin/zdbctl")
+		zenvs := {"ZDBCTL_PORT": "$port"}
+
+		mut mode := "seq"
+
+		if namespace[0..10] == "zstor-meta" {
+			mode = "user"
+		}
+
+		zctlargs := ["NSSET", namespace, "mode", mode]
+
+		zdbctl.set_environment(zenvs)
+		zdbctl.set_redirect_stdio()
+		zdbctl.set_args(zctlargs)
+		zdbctl.run()
+		zdbctl.wait()
+	}
+
+	return true
+}
+
+fn zdb_init(rootdir string, port int) bool {
 	println("[+] starting 0-db local cache")
 
 	mut zdb := os.new_process(rootdir + "/bin/zdb")
@@ -215,6 +312,7 @@ fn zdb_init(rootdir string) bool {
 		"--index", rootdir + "/var/tmp/zdb/index",
 		"--data", rootdir + "/var/tmp/zdb/data",
 		"--hook", rootdir + "/var/lib/zdb-hook.sh",
+		"--port", "$port",
 		"--datasize", "33554432",  // 32 MB
 		"--rotate", "900",  // 30 min
 		"--mode", "seq",
@@ -236,10 +334,6 @@ fn zdb_init(rootdir string) bool {
 	}
 
 	return true
-}
-
-fn zstor_init() {
-	println("init")
 }
 
 fn filesystem(rootdir string) bool {
@@ -286,6 +380,7 @@ fn config_update(path string, rootdir string) ? string {
 	data = config_set(data, "root", rootdir)
 	data = config_set(data, "socket", rootdir + "/var/tmp/zstor.sock")
 	data = config_set(data, "zdb_data_dir_path", rootdir + "/var/tmp/zdb/data")
+	data = config_set(data, "zdbfs_mountpoint", rootdir + "/mnt/zdbfs")
 
 	// overwrite config file
 	os.write_file(path, data)?
@@ -327,8 +422,24 @@ fn main() {
 	println("[+] updating: local zstor configuration file")
 	config_update(rootdir + "/etc/zstor-default.toml", rootdir)?
 
-	if zdb_precheck(rootdir) == false {
-		if zdb_init(rootdir) == false {
+	islocal := (resources.zstor == "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-local.toml")
+
+	if islocal {
+		if zdb_precheck(rootdir, 9901) == false {
+			if zdb_local_init(rootdir, 9901) == false {
+				return
+			}
+		}
+	}
+
+	if zstor_precheck(rootdir) == false {
+		if zstor_init(rootdir) == false {
+			return
+		}
+	}
+
+	if zdb_precheck(rootdir, 9900) == false {
+		if zdb_init(rootdir, 9900) == false {
 			return
 		}
 	}
