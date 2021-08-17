@@ -12,6 +12,7 @@ horizon_url = "https://my.horizon.server"
 prometheus_port = 9100
 zdb_data_dir_path = "/tmp/0-db/data"
 max_zdb_data_dir_size = 256000
+zdbfs_mountpoint = "/somewhere"
 
 [encryption]
 algorithm = "AES"
