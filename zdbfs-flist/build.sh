@@ -1,13 +1,12 @@
 #/bin/bash
 set -ex
 
-# Ubuntu 18.04
+# Ubuntu 20.04
 
 prefix="${HOME}/zdbfs-prefix-root"
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive \
-    apt-get install -y wget build-essential meson libudev-dev udev pkg-config
+DEBIAN_FRONTEND=noninteractive apt-get install -y wget fuse3
 
 mkdir -p "${prefix}"
 mkdir -p "${prefix}/bin"
@@ -18,53 +17,32 @@ cp ../lib/zdb-hook.sh "${prefix}/var/lib/"
 
 pushd "/tmp/"
 
-wget https://github.com/etcd-io/etcd/releases/download/v3.4.14/etcd-v3.4.14-linux-amd64.tar.gz
-wget https://github.com/threefoldtech/0-stor_v2/releases/download/v0.2.0/zstor_v2-x86_64-linux-musl
-wget https://github.com/threefoldtech/0-stor_v2/releases/download/v0.2.0/zstor_monitor-x86_64-linux-musl
-wget https://github.com/threefoldtech/0-db/releases/download/v1.3.1/zdb-1.3.1-linux-amd64-gnu
-wget https://github.com/threefoldtech/0-flist/releases/download/v2.0.1/zflist-2.0.1-amd64-linux-gnu
-wget https://github.com/threefoldtech/0-db-fs/releases/download/v0.1.3/zdbfs-0.1.3-amd64-linux-gnu
+zstor_version="0.3.0-rc.4"
+zdb_version="2.0.0-rc5"
+zdbfs_version="0.1.7"
+zflist_version="2.0.1"
+zdbctl_version="0.0.4"
 
-tar -xvf etcd-v3.4.14-linux-amd64.tar.gz
+wget https://github.com/threefoldtech/0-stor_v2/releases/download/v${zstor_version}/zstor_v2-x86_64-linux-musl
+wget https://github.com/threefoldtech/0-db/releases/download/v${zdb_version}/zdb-${zdb_version}-linux-amd64-static
+wget https://github.com/threefoldtech/0-flist/releases/download/v${zflist_version}/zflist-${zflist_version}-amd64-linux-gnu
+wget https://github.com/threefoldtech/0-db-fs/releases/download/v${zdbfs_version}/zdbfs-${zdbfs_version}-amd64-linux-static
+wget https://github.com/threefoldtech/quantum-storage/releases/download/v${zdbctl_version}/zdbctl
 
 chmod +x zstor_v2-x86_64-linux-musl
-chmod +x zstor_monitor-x86_64-linux-musl
-chmod +x zdb-1.3.1-linux-amd64-gnu
-chmod +x zflist-2.0.1-amd64-linux-gnu
-chmod +x zdbfs-0.1.3-amd64-linux-gnu
+chmod +x zdb-${zdb_version}-linux-amd64-static
+chmod +x zflist-${zflist_version}-amd64-linux-gnu
+chmod +x zdbfs-${zdbfs_version}-amd64-linux-static
+chmod +x zdbctl
 
-cp zstor_v2-x86_64-linux-musl "${prefix}/bin/zstor-v2"
-cp zstor_monitor-x86_64-linux-musl "${prefix}/bin/zstor-monitor"
-cp zdb-1.3.1-linux-amd64-gnu "${prefix}/bin/zdb"
-cp zflist-2.0.1-amd64-linux-gnu "${prefix}/bin/zflist"
-cp zdbfs-0.1.3-amd64-linux-gnu "${prefix}/bin/zdbfs"
-cp etcd-v3.4.14-linux-amd64/etcd "${prefix}/bin/etcd"
+cp -v zstor_v2-x86_64-linux-musl "${prefix}/bin/zstor-v2"
+cp -v zdb-${zdb_version}-linux-amd64-static "${prefix}/bin/zdb"
+cp -v zflist-${zflist_version}-amd64-linux-gnu "${prefix}/bin/zflist"
+cp -v zdbfs-${zdbfs_version}-amd64-linux-static "${prefix}/bin/zdbfs"
+cp -v $(which fusermount3) "${prefix}/bin/fusermount3"
+cp -v zdbctl "${prefix}/bin/zdbctl"
 
 popd
-
-libfuse() {
-    pushd /tmp
-
-    wget https://github.com/libfuse/libfuse/releases/download/fuse-3.10.2/fuse-3.10.2.tar.xz
-    tar -xf fuse-3.10.2.tar.xz
-
-    cd fuse-3.10.2
-    mkdir build && cd build
-    meson ..
-    ninja
-    ninja install
-
-    popd
-
-    cp /usr/local/lib/x86_64-linux-gnu/libfuse3.so.3.10.2 "${prefix}/lib/libfuse3.so.3.10.2"
-    cp /usr/local/bin/fusermount3 "${prefix}/bin/fusermount3"
-
-    pushd "${prefix}/lib"
-    ln -s libfuse3.so.3.10.2 libfuse3.so.3
-    popd
-}
-
-libfuse
 
 tar -zcvpf /tmp/zdbfs-image.tar.gz -C ${prefix} .
 
