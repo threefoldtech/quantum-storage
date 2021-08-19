@@ -1,6 +1,7 @@
-# Quantum Storage
+# Quantum Storage Filesystem
 
-[todo: quantum storage short explaination]
+The Quantum Storage Filesystem is a FUSE filesystem which aim to be able to support unlimited local storage
+with remote backend for offload and backup which cannot be broke even by a quantum computer.
 
 # Summary
 
@@ -15,7 +16,7 @@
 The full chain about quantum storage is made of 3 parts:
 - [0-db](https://github.com/threefoldtech/0-db): storage engine
 - [0-db-fs](https://github.com/threefoldtech/0-db-fs): FUSE layer which use the storage engine in an optimized way
-- [0-stor-v2](https://github.com/threefoldtech/0-stor_v2): erasure encode storage data and send chunks to safe location
+- [0-stor-v2](https://github.com/threefoldtech/0-stor_v2): engine to save/backup data to safe location
 
 ## 0-db-fs
 
@@ -44,82 +45,20 @@ One external process to handle theses cases is 0-stor-v2 we use.
 ## 0-stor-v2
 
 This tool can be used as external process for 0-db, or can be used for any purpose. It just takes one file
-as input, it encrypt this file in AES based on a key user-defined, then erasure encode file and spread them
+as input, it encrypt this file in AES based on a key user-defined, encode file and spread them
 to multiple 0-db. Based on the policy (configurable), some amount of 0-db can be unreachable, data can still
 retreived and missing database can even be rebuilt to keep full consistance available.
 
-Metadata needed to get data back from 0-db in order, are stored in etcd, whcih can run in cluster.
+Metadata needed to get data back from 0-db in order, are stored in others 0-db.
 
-# Repository Content
+# Bootstrap
 
-- `default-sample.toml`: default 0-stor-v2 configuration filled with some 0-db available to provide
-quick and easy test feature
-- `Dockerfile`: build script to get a quick and small Docker with minio on top on 0-db-fs
-- `init.sh`: init script executed on container start, which basically runs everything needed on runtime
-- `nscreate.v`: a small V program to create needed namespace inside 0-db needed by 0-db-fs
-- `zdb-hook.sh`: hook script attached to 0-db, which is the 'user-defined' way to send data to 0-stor-v2 and
-to retreive data aswell
-- `host.sh`: build script to build minimal stuff on an Ubuntu host
-- `host-init.sh`: init script to run host build binaries
+You can use the bootstrap (`bootstrap/bootstrap.v`) to download and starts required components and start
+everything required. Default configuration use everything localy. You can pass a specific zstor configuration file
+to use a real backend out-of-box.
 
-# Execution
-
-In order to get the container running with full power, you need to get ipv6 working inside your Docker.
-You can enable ipv6 by editing: `/etc/docker/daemon.json`, see more information on Docker official documentation.
-
-If you don't have ipv6 working, 0-fs-db will still works but you won't have the erasure coding working.
-
-## Build
-
-Build the docker image using:
-```bash
-docker build -t tf/quantum .
-```
-
-This will download, compile and prepare needed stuff to get a working container. Build is made inside an Ubuntu
-container, but real runtime and execution container is Alpine, quite small. Only minimal stuff are pushed
-to the image.
-
-## Execution
-
-You need to run the container with `FUSE` access enabled and mount privilege:
-```bash
-docker run --rm -it --device /dev/fuse --cap-add CAP_SYS_ADMIN tf/quantum
-```
-
-As soon as the container is up-and-running, you can reach it via it's ip, port 9000 to get
-minio web interface. You maybe need to add `-p 9000:9000` if you want some port-forward.
-
-# Init Script
-
-If you want to deploy stuff yourself, here are some explaination on commands executed inside the container.
-
-## 0-db
-```bash
-zdb \
-  --datasize $((32 * 1024 * 1024)) \     # limit datafiles to 32MB
-  --mode seq \                           # default running mode required by 0-db-fs
-  --listen 127.0.0.1 \                   # specify listening interface, could be 0.0.0.0 aswell
-  --hook /lib/zdb/zstor-hook.sh \        # user-defined script called when datafile are full or missing
-  --data /zdb/data \                     # location where data are saved
-  --index /zdb/index                     # location where index are saved
-```
-
-Data will be sent to the grid and erasure encoded only (for now) when a datafile is full. By setting data size
-to 32 MB, basically, each time 32 MB are send to the fuse, theses data are sent to the grid and are safe forever.
-
-Some fix later will push data even before reaching the limit to ensure time-based persistance aswell.
-
-## 0-db-fs
-```bash
-nscreate       # create required default namespaces in 0-db, expected by 0-db-fs
-zdbfs /mnt     # mount the filesystem into /mnt
-```
-
-## Cluster and Minio
-
-There is a default etcd running and minio. The etcd can run alone or in cluster, it's up to you
-to configure that, if it runs alone, obviously if it dies, you will loose your grid metadata.
+Everything will be installed in `~/.threefold` and nowhere else.
+This bootstrap will spawn two `zdb`, one `zstor daemon` and the `zdbfs` fuse system.
 
 # Extra Feature
 
