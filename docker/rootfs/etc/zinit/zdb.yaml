@@ -1,0 +1,9 @@
+exec: zdb
+  --mode seq
+  --data /data/data
+  --index /data/index
+  --hook /bin/hook.sh
+  --rotate 10
+log: stdout
+after:
+  - zstor

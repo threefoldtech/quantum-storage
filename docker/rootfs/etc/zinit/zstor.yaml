@@ -1,0 +1,6 @@
+exec: zstor
+  --log_file /data/zstor.log
+  -c /data/zstor.toml
+  monitor
+test: check_zstor
+log: stdout

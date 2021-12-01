@@ -1,0 +1,60 @@
+minimal_shards = 1 
+expected_shards = 2 
+redundant_groups = 0
+redundant_nodes = 0
+max_zdb_data_dir_size = 256
+socket = "/var/run/zstor.sock"
+prometheus_port = 9100
+zdbfs_mountpoint = "/mnt"
+zdb_data_dir_path = "/data/data"
+zdb_index_dir_path = "/data/index"
+
+[encryption]
+  algorithm = "AES"
+  key = "4d778ba3216e4da4231540c92a55f06157cabba802f9b68fb0f78375d2e825af"
+
+[meta]
+  type = "zdb"
+  [meta.config]
+    prefix = "hamada"
+    [meta.config.encryption]
+      algorithm = "AES"
+      key = "4d778ba3216e4da4231540c92a55f06157cabba802f9b68fb0f78375d2e825af"
+
+    [[meta.config.backends]]
+      address = "172.17.0.1:9900"
+      namespace = "meta-1"
+
+    [[meta.config.backends]]
+      address = "172.17.0.1:9900"
+      namespace = "meta-2"
+
+    [[meta.config.backends]]
+      address = "172.17.0.1:9900"
+      namespace = "meta-3"
+
+    [[meta.config.backends]]
+      address = "172.17.0.1:9900"
+      namespace = "meta-4"
+
+[[groups]]
+
+  [[groups.backends]]
+    address = "172.17.0.1:8800"
+    namespace = "data-1"
+
+  [[groups.backends]]
+    address = "172.17.0.1:8800"
+    namespace = "data-2"
+
+  [[groups.backends]]
+    address = "172.17.0.1:8800"
+    namespace = "data-3"
+
+  [[groups.backends]]
+    address = "172.17.0.1:8800"
+    namespace = "data-4"
+
+[compression]
+  algorithm = "snappy"
+

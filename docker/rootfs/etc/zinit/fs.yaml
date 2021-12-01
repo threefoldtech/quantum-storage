@@ -1,0 +1,4 @@
+exec: zdbfs -o allow_other -o auto_unmount /mnt
+log: stdout
+after:
+  - ns
