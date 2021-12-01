@@ -21,7 +21,7 @@ if [ "$action" == "namespace-created" ]; then
     fi
     file="$zstorindex/$3/zdb-namespace"
 
-    # backup data file
+    # backup zdb-namespace file
     ${zstorbin} -c ${zstorconf} store -s --file "$file"
 
     exit 0
