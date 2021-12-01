@@ -2,5 +2,7 @@ exec: zstor
   --log_file /data/zstor.log
   -c /data/zstor.toml
   monitor
-test: check_zstor
+test: sh -c '[ "`nc -v -z -U /var/run/zstor.sock 2>&1`" == "" ]'
+# nc exits with 1 for zstor socket (and zinit), it works normally with docker unix socket
+# its output is checked instead
 log: stdout

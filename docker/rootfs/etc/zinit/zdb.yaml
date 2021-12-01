@@ -5,5 +5,6 @@ exec: zdb
   --hook /bin/hook.sh
   --rotate 10
 log: stdout
+test: redis-cli -p 9900 PING
 after:
   - zstor
