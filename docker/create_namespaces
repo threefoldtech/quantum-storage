@@ -4,6 +4,4 @@ cat << EOF | redis-cli -p 9900
 NSNEW zdbfs-meta
 NSNEW zdbfs-data
 NSNEW zdbfs-temp
-NSSET zdbfs-temp password hello
-NSSET zdbfs-temp public 0
 EOF

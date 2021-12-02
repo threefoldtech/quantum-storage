@@ -3,7 +3,11 @@ exec: zdb
   --data /data/data
   --index /data/index
   --hook /bin/hook.sh
-  --rotate 10
+# zstor times out after 30 seconds for each operation
+# and zdbfs-data and zdbfs-meta are uploaded
+# default namespace should be empty
+# and the indexes doesn't take time anyway
+shutdown_timeout: 65
 log: stdout
 test: redis-cli -p 9900 PING
 after:
