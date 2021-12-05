@@ -22,6 +22,15 @@ if [ "$action" = "close" ]; then
         indexfile="$indexdir/i$lastactive"
         ${zstorbin} -c ${zstorconf} store -s --file "$datafile"
         ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
+        for index in `ls $indexdir | grep -v zdb-namespace`; do
+            [ "$index" = "i$lastactive" ] && continue 
+            indexfile="$indexdir/$index"
+            remotechecksum=`${zstorbin} -c ${zstorconf} check -f "$indexfile"`
+            localchecksum=`b2sum "$indexfile" --length=128 | cut -d' ' -f1`
+            if [ "$remotechecksum" != "$localchecksum" ]; then # missing or dirty index or another error
+                ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
+            fi
+        done
     done
     exit 0
 fi
