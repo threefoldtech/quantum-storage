@@ -11,22 +11,22 @@ zstorindex="/data/index"
 zstordata="/data/data"
 
 if [ "$action" = "close" ]; then
-    for namespace in `ls $zstordata`; do
+    for namespace in $(ls $zstordata); do
         if [ "${namespace}" = "zdbfs-temp" ]; then
             continue
         fi
         indexdir="$zstorindex/$namespace"
         datadir="$zstordata/$namespace"
-        lastactive="`ls $indexdir | grep -v zdb-namespace | cut -d'i' -f2 | sort -n | tail -n 1`"
+        lastactive=$(ls $indexdir | grep -v zdb-namespace | cut -d'i' -f2 | sort -n | tail -n 1)
         datafile="$datadir/d$lastactive"
         indexfile="$indexdir/i$lastactive"
         ${zstorbin} -c ${zstorconf} store -s --file "$datafile"
         ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
-        for index in `ls $indexdir | grep -v zdb-namespace`; do
+        for index in $(ls $indexdir | grep -v zdb-namespace); do
             [ "$index" = "i$lastactive" ] && continue 
             indexfile="$indexdir/$index"
-            remotechecksum=`${zstorbin} -c ${zstorconf} check -f "$indexfile"`
-            localchecksum=`b2sum "$indexfile" --length=128 | cut -d' ' -f1`
+            remotechecksum=$(${zstorbin} -c ${zstorconf} check -f "$indexfile")
+            localchecksum=$(b2sum "$indexfile" --length=128 | cut -d' ' -f1)
             if [ "$remotechecksum" != "$localchecksum" ]; then # missing or dirty index or another error
                 ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
             fi
