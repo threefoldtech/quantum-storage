@@ -1,0 +1,4 @@
+exec: wait_hooks
+after:
+# don't kill zstor until all hooks are dead
+- zstor

@@ -11,5 +11,4 @@ RUN apk add fuse3 redis netcat-openbsd coreutils &&\
     chmod +x /bin/zdb /bin/zdbfs /bin/zstor /sbin/zinit &&\
     mkdir /data/
 ADD rootfs .
-COPY create_namespaces hook.sh /bin/
 ENTRYPOINT ["/sbin/zinit", "init", "--container"]
