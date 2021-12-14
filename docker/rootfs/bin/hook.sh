@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ex
+set -x
 
 echo args "$@"
 
@@ -10,34 +10,71 @@ zstorbin="/bin/zstor"
 zstorindex="/data/index"
 zstordata="/data/data"
 
-if [ "$action" = "close" ]; then
-    for namespace in $(ls $zstordata); do
-        if [ "${namespace}" = "zdbfs-temp" ]; then
-            continue
-        fi
-        indexdir="$zstorindex/$namespace"
-        datadir="$zstordata/$namespace"
-        lastactive=$(ls $indexdir | grep -v zdb-namespace | cut -d'i' -f2 | sort -n | tail -n 1)
-        datafile="$datadir/d$lastactive"
-        indexfile="$indexdir/i$lastactive"
-        ${zstorbin} -c ${zstorconf} store -s --file "$datafile"
-        ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
-        for index in $(ls $indexdir | grep -v zdb-namespace); do
-            [ "$index" = "i$lastactive" ] && continue 
-            indexfile="$indexdir/$index"
-            remotechecksum=$(${zstorbin} -c ${zstorconf} check -f "$indexfile")
-            localchecksum=$(b2sum "$indexfile" --length=128 | cut -d' ' -f1)
-            if [ "$remotechecksum" != "$localchecksum" ]; then # missing or dirty index or another error
-                ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
+restore_namespace () {
+    if [ "$1" = "zdbfs-temp" ]; then
+        return
+    fi
+    indexdir="$zstorindex/$1"
+    datadir="$zstordata/$1"
+    ci=0 # current index
+    
+    ${zstorbin} -c ${zstorconf} retrieve --file "$indexdir/zdb-namespace"
+    while true; do
+        indexpath="$indexdir/i$ci"
+        ${zstorbin} -c ${zstorconf} retrieve --file "$indexpath"
+        if [ $? != 0 ]; then
+            if [ $ci != 0 ]; then
+                datapath="$datadir/d$(( $ci - 1))"
+                ${zstorbin} -c ${zstorconf} retrieve --file "$datapath"
             fi
-        done
+            break
+        fi
+        ci=$(( $ci + 1 ))
     done
+}
+
+if [ "$action" = "ready" ]; then
     exit 0
 fi
 
-if [ "$action" = "ready" ]; then
-    ${zstorbin} -c ${zstorconf} test
-    exit $?
+# doesn't work because close is not the last hook
+# if [ "$action" = "close" ]; then
+#     cat /proc/*/comm 2> /dev/null | grep '[h]ook.sh'
+#     while ! cat /proc/*/comm | grep '[h]ook.sh' | wc -l | grep -q '^1$'; do
+#         # there's another hook other than ourself
+#         sleep .1
+#     done
+#     echo 'all hooks are dead'
+#     exit 0
+# fi
+
+if [ "$action" = "namespaces-init" ]; then
+    restore_namespace zdbfs-meta
+    restore_namespace zdbfs-data
+    exit 0
+fi
+# zdbfs-data /data/index/zdbfs-data/i18 /data/data/zdbfs-data/d18 17 18
+if [ "$action" = "namespace-closing" ]; then
+    namespace="$3"
+    ci="$4"
+    cd="$5"
+    dirty="$6"
+    if [ "${namespace}" = "zdbfs-temp" ]; then
+        continue
+    fi
+    indexdir=$(dirname $ci)
+    datadir=$(dirname $cd)
+    lastindex="$indexdir/$ci"
+    lastdata="$datadir/$cd"
+
+    ${zstorbin} -c ${zstorconf} store -s --file "$ci"
+    ${zstorbin} -c ${zstorconf} store -s --file "$cd"
+    
+    for index in $dirty; do
+        indexfile="$indexdir/i$index"
+        ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
+    done
+    exit 0
 fi
 
 if [ "$action" = "namespace-created" ] || [ "$action" = "namespace-updated" ]; then

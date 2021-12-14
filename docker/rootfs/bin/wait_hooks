@@ -1,9 +1,11 @@
 #!/bin/sh
 
+set -x
+
 sleeppid=0
 
 wait_hooks () {
-    while cat /proc/*/cmdline 2> /dev/null | grep -q '[j]ump-'; do
+    while cat /proc/*/comm 2> /dev/null | grep -q '[h]ook.sh'; do
         sleep .1
     done
     echo 'all hooks are dead'

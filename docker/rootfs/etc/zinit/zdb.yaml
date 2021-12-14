@@ -12,4 +12,4 @@ shutdown_timeout: 65
 log: stdout
 test: redis-cli -p 9900 PING
 after:
-  - zstor
+  - wait_hooks # start waiting after zdb die
