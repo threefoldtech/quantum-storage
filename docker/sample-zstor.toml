@@ -2,12 +2,11 @@ minimal_shards = 1
 expected_shards = 2 
 redundant_groups = 0
 redundant_nodes = 0
-max_zdb_data_dir_size = 256
+max_zdb_data_dir_size = 10240
 socket = "/var/run/zstor.sock"
 prometheus_port = 9100
 zdbfs_mountpoint = "/mnt"
-zdb_data_dir_path = "/data/data"
-zdb_index_dir_path = "/data/index"
+zdb_data_dir_path = "/data/data/zdbfs-data"
 
 [encryption]
   algorithm = "AES"

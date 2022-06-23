@@ -5,7 +5,7 @@ set -x
 sleeppid=0
 
 wait_hooks () {
-    while cat /proc/*/comm 2> /dev/null | grep -q '[h]ook.sh'; do
+    while ps -o args | grep -q '^/bin/sh /bin/hook.sh'; do
         sleep .1
     done
     echo 'all hooks are dead'

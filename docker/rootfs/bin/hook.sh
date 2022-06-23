@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env -S setsid --wait /bin/sh
+
 set -x
 
 echo args "$@"
@@ -11,13 +12,10 @@ zstorindex="/data/index"
 zstordata="/data/data"
 
 restore_namespace () {
-    if [ "$1" = "zdbfs-temp" ]; then
-        return
-    fi
     indexdir="$zstorindex/$1"
     datadir="$zstordata/$1"
     ci=0 # current index
-    
+
     ${zstorbin} -c ${zstorconf} retrieve --file "$indexdir/zdb-namespace"
     while true; do
         indexpath="$indexdir/i$ci"
@@ -60,19 +58,19 @@ if [ "$action" = "namespace-closing" ]; then
     cd="$5"
     dirty="$6"
     if [ "${namespace}" = "zdbfs-temp" ]; then
-        continue
+        exit 0
     fi
     indexdir=$(dirname $ci)
     datadir=$(dirname $cd)
     lastindex="$indexdir/$ci"
     lastdata="$datadir/$cd"
 
-    ${zstorbin} -c ${zstorconf} store -s --file "$ci"
-    ${zstorbin} -c ${zstorconf} store -s --file "$cd"
+    ${zstorbin} -c ${zstorconf} store --notblocking -s --file "$ci"
+    ${zstorbin} -c ${zstorconf} store --notblocking -s --file "$cd"
     
     for index in $dirty; do
         indexfile="$indexdir/i$index"
-        ${zstorbin} -c ${zstorconf} store -s --file "$indexfile"
+        ${zstorbin} -c ${zstorconf} store --notblocking -s --file "$indexfile"
     done
     exit 0
 fi
@@ -85,7 +83,7 @@ if [ "$action" = "namespace-created" ] || [ "$action" = "namespace-updated" ]; t
     file="$zstorindex/$3/zdb-namespace"
 
     # backup zdb-namespace file
-    ${zstorbin} -c ${zstorconf} store -s --file "$file"
+    ${zstorbin} -c ${zstorconf} store --notblocking -s --file "$file"
 
     exit 0
 fi
@@ -107,7 +105,7 @@ if [ "$action" = "jump-index" ]; then
         cp ${dirbase}/${file} ${tmpdir}/
     done
     cp "$3" ${tmpdir}/
-    ${zstorbin} -c ${zstorconf} store -s -d -f ${tmpdir} -k ${dirbase} &
+    ${zstorbin} -c ${zstorconf} store --notblocking -s -d -f ${tmpdir} -k ${dirbase} &
 
     exit 0
 fi
@@ -120,7 +118,7 @@ if [ "$action" = "jump-data" ]; then
     fi
 
     # backup data file
-    ${zstorbin} -c ${zstorconf} store -s --file "$3"
+    ${zstorbin} -c ${zstorconf} store --notblocking -s --file "$3"
 
     exit 0
 fi
