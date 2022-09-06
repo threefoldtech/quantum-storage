@@ -71,7 +71,7 @@ fn download(resources Resources) {
 
 	println("[+] downloading: " + zflist_bin)
 	http.download_file(resources.zflist, zflist_bin) or { eprintln(err) }
-	os.chmod(zflist_bin, 0o775)
+	os.chmod(zflist_bin, 0o775) or { eprintln(err) }
 
 	println("[+] downloading: " + zdbfs_file)
 	http.download_file(resources.zdbfs, zdbfs_file) or { eprintln(err) }
@@ -175,16 +175,16 @@ fn extract(rootdir string, resources Resources) {
 		target := os.join_path(rootdir, file)
 
 		zflist_run("./" + zflist_bin, ["get", file, target], true)
-		os.chmod(target, 0o775)
+		os.chmod(target, 0o775) or { eprintln(err) }
 	}
 
 	zflist_run("./" + zflist_bin, ["close"], false)
 
 	// symlink zstor binary name
-	os.chdir(os.join_path(rootdir, "bin"))
+	os.chdir(os.join_path(rootdir, "bin")) or { eprintln(err) }
 	os.symlink("zstor-v2", "zstor") or { return }
 
-	os.chdir(rootdir)
+	os.chdir(rootdir) or { eprintln(err) }
 }
 
 fn zstor_precheck(rootdir string) bool {
@@ -223,7 +223,7 @@ fn zdb_precheck(rootdir string, port int) bool {
 	}
 
 	conn.write_string("#1") or {
-		if err.code == net.err_new_socket_failed.code {
+		if err.code() == net.err_new_socket_failed.code() {
 			// connection refused
 			return false
 		}
@@ -406,7 +406,7 @@ fn main() {
 	}
 
 	prefix(rootdir)
-	os.chdir(rootdir + "/var/cache")
+	os.chdir(rootdir + "/var/cache") or { eprintln(err) }
 
 	download(resources)
 	extract(rootdir, resources)
