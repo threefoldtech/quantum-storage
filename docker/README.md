@@ -12,4 +12,4 @@ docker build . -t qsfs
 docker run -v <zstor.toml-path-file-on-host>:/data/zstor.toml -ti qsfs
 ```
 
-Here is a sample of a [./zstor-sample.toml](zstor.toml)
+Here is a sample of a [zstor.toml](./zstor-sample.toml)
