@@ -1,5 +1,11 @@
 # QSFS docker
 
+## Important paths
+
+The container mounts qsfs on `/mnt` and the 0-stor config is read from `/data/zstor.toml`.
+
+Make sure to mount a valid 0-stor config in the container.
+
 ## Building
 
 ```bash
