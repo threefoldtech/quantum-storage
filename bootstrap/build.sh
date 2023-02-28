@@ -16,7 +16,7 @@ popd
 export PATH=$VPATH:$PATH
 
 # v -o bootstrap.c bootstrap.v
-v -o bootstrap.v
+v bootstrap.v
 
 # gcc bootstrap.c $VPATH/thirdparty/cJSON/*.c -o bootstrap -I$VPATH/thirdparty/cJSON/ \
 #   -Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic -ldl -lpthread
