@@ -36,3 +36,6 @@ docker run -v <zstor.toml-path-file-on-host>:/data/zstor.toml -ti qsfs
 ```
 
 Here is a sample of a [zstor.toml](./zstor-sample.toml)
+
+## Docs
+Please for more details about the separate components of the docker image refer to the [documentation here](docker.md)
