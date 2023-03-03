@@ -20,19 +20,20 @@ zdb_data_dir_path = "/data/data"
 
 When the 0-db's are deployed on the grid, they have IPv6 addresses so the [Docker daemon needs to be configured for this](https://docs.docker.com/config/daemon/ipv6/).
 
+You can also use host networking  by passing `--network host`to make sure the processes in the container can access the zdb's
+
 Note:
 > IPv6 networking is only supported on Docker daemons running on Linux hosts.
 
-## Building
+## Fuse
 
-```bash
-docker build . -t qsfs
-```
+Make sure the container host has the fuse kernel module loaded ( `modprobe fuse`).
+Inside the container the fuse device needs to be available ( pass `--device /dev/fuse`) and the process inside the container needs to be authorised to use it ( use ``--privileged` or `--cap-add SYS_ADMIN`).
 
 ## Running
 
 ```bash
-docker run -v <zstor.toml-path-file-on-host>:/data/zstor.toml -ti qsfs
+docker run  --network host --device /dev/fuse --privileged -v <zstor.toml-path-file-on-host>:/data/zstor.toml  ghcr.io/threefoldtech/qsfs
 ```
 
 Here is a sample of a [zstor.toml](./zstor-sample.toml)
