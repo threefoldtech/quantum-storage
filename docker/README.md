@@ -11,7 +11,7 @@ Make sure to mount a valid 0-stor config in the container.
 In the 0-stor config, set the following properties to these fixed paths:
 
 ```toml
-root = "/mnt"
+zdbfs_mountpoint = "/mnt"
 socket = "/var/run/zstor.sock"
 zdb_data_dir_path = "/data/data"
 ```
