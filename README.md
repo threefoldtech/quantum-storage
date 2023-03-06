@@ -1,48 +1,24 @@
 # Quantum Storage Filesystem
 
-The Quantum Storage Filesystem is a FUSE filesystem which aim is to support unlimited local storage
-with remote backends for offload and backup which cannot be broken, even by a quantum computer.
+Quantum Storage is a FUSE filesystem that uses mechanisms of forward error correction (Reed Solomon codes) to make sure data (files and metadata) are stored in multiple remote places in a way that we can afford losing `x` number of locations without losing the data. There is other factors that are involved into this operation like encryption. Please check [0-stor](https://github.com/threefoldtech/0-stor_v2) documentations for details.
 
-## Summary
+The aim is to support unlimited local storage with remote backends for offload and backup which cannot be broken, even by a quantum computer.
 
-1. [Components](#components)
-2. [Bootstrap](#bootstrap)
-3. [Extra feature](#extra-feature)
+## Overview
 
-## Components
+To have a working qsfs filesystem there are multiple components that need to work together to make it work. These components are
 
-- [0-db](https://github.com/threefoldtech/0-db): storage engine
-- [0-db-fs](https://github.com/threefoldtech/0-db-fs): FUSE layer which uses the storage engine in an optimized way
-- [0-stor-v2](https://github.com/threefoldtech/0-stor_v2): engine to save/backup data to safe locations
+- [0-db-fs](https://github.com/threefoldtech/0-db-fs) this is what creates the `FUSE` mount (the actual user facing filesystem) this component does not know about qsfs or forward error correction. It's main job is to expose the fuse filesystem and store it's data in a local zdb instacne
+- [0-db](https://github.com/threefoldtech/0-db) is a local `cache` db. this is what is used by the `0-db-fs` to store the actual data of the filesystem. This means that any read/write operations triggered by the `0-db-fs` directly access this (single) instance of `0-db` for the data blocks
+- [0-stor](https://github.com/threefoldtech/0-stor_v2) zero stor is listening to `0-db` events (with a hooks system) to upload and/or download zdb data files segments to remote locations. that's where the encryption and forward error correction happens.
 
-### 0-db-fs
+Since zdb is an `append-only` database, the local db will just keep growing linearly with each write (and delete) operation. ZDB will then create db segment files that are granted to **not** change in the future. What happens once a segment file is closed (it hit it's max file size) a hook is triggered which in return will trigger `0-stor` to chunk and upload this file to the remote locations (zdbs).
 
-This is a simple filesystem driver which use 0-db as primary storage engine.
+The segment file will then be deleted (at some point) in the future when the number of segment files reaches a certain number, older files will get deleted.
 
-Directories and metadata are stored in a dedicated namespace, file payloads are saved in another
-dedicated namespace.
+If the filesystem then is trying to access a piece of old data, it will make a read call to the local `zdb`. If the zdb is trying to access an old segment of the db that is no longer on disk, another hook is triggered to `0-stor` to download that segment. 0-stor then will re-download the required segment from the remote locations and re-build it.
 
-The filesystem uses an internal cache system, not for performance, but to optimize how data
-is stored in the 0-db to avoid overhead as much as possible.
-
-### 0-db
-
-This is an always append object database, which stores objects in an immutable format, which allows to have history out-of-box, good performance on disk, low overhead, easy data structure, easy backup (linear copy and immutable files).
-
-We use two types of 0-db's: one for the storage backend next to 0-db-fs, which is where data needs
-to be, to be available via the fuse filesystem. This 0-db can offload it's data to an external process (user-defined) and can also request missing data to be retreived.
-
-This enables the database to spread and not using always local storage space if data are not read.
-
-One external process to handle theses cases is 0-stor-v2 we use.
-
-### 0-stor-v2
-
-This tool can be used as external process for 0-db. It  takes a file
-as input, encrypts it, Creates the forward looking error codes shards and and spreads them
-to multiple 0-db. Based on the policy (configurable), some amount of 0-db can be unreachable, data can still retreived and missing databases can  be rebuilt to keep full consistency.
-
-Metadata needed to get data back from 0-db in order, are stored in other 0-db's.
+Once the zdb segment file is restored, the read operation continues.
 
 ## Bootstrap
 
