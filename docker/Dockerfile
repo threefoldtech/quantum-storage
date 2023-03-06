@@ -1,7 +1,7 @@
 FROM alpine:latest
 ARG ZDB_VERSION=2.0.5
 ARG ZDBFS_VERSION=0.1.11
-ARG ZSTOR_VERSION=0.3.0
+ARG ZSTOR_VERSION=0.4.0-rc1
 ARG ZINIT_VERSION=0.2.10
 RUN apk add fuse3 redis netcat-openbsd coreutils util-linux
 RUN wget https://github.com/threefoldtech/0-db/releases/download/v$ZDB_VERSION/zdb-$ZDB_VERSION-linux-amd64-static -O /bin/zdb
