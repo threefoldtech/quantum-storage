@@ -1,0 +1,15 @@
+exec: zdb
+  --mode seq
+  --data /data/data
+  --index /data/index
+  --hook /bin/hook.sh
+  --datasize 16777216
+# zstor times out after 30 seconds for each operation
+# and zdbfs-data and zdbfs-meta are uploaded
+# default namespace should be empty
+# and the indexes doesn't take time anyway
+shutdown_timeout: 65
+log: stdout
+test: redis-cli -p 9900 PING
+after:
+  - wait_hooks # start waiting after zdb die

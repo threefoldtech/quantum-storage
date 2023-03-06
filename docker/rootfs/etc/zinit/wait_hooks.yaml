@@ -1,0 +1,6 @@
+exec: wait_hooks
+# can be arbitrarily long, what is a good limit?
+shutdown_timeout: 99999999
+after:
+# don't kill zstor until all hooks are dead
+- zstor

@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -x
+
+sleeppid=0
+
+wait_hooks () {
+    while ps -o args | grep -q '^/bin/sh /bin/hook.sh'; do
+        sleep .1
+    done
+    echo 'all hooks are dead'
+    [ $sleeppid != 0 ] && kill $sleeppid # don't leave the `sleep infinity` dangling
+}
+
+trap wait_hooks TERM
+sleep infinity &
+sleeppid=$!
+
+wait %1

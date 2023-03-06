@@ -1,0 +1,7 @@
+#!/bin/sh
+
+cat << EOF | redis-cli -p 9900
+NSNEW zdbfs-meta
+NSNEW zdbfs-data
+NSNEW zdbfs-temp
+EOF

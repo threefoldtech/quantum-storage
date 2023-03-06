@@ -1,0 +1,5 @@
+exec: create_namespaces
+oneshot: true
+log: stdout
+after:
+  - zdb
