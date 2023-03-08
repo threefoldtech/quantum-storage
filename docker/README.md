@@ -40,6 +40,20 @@ docker run  --network host --device /dev/fuse --privileged -v <zstor.toml-path-f
 
 Here is a sample of a [zstor.toml](./zstor-sample.toml)
 
+## Extra Feature
+
+You can use a special option with docker to mount-share the container mountpoint:
+
+```bash
+mkdir /mnt/qsfs
+docker run [...] --mount type=bind,source=/mnt/qsfs,target=/mnt,bind-propagation=rshared ghcr.io/threefoldtech/qsfs
+```
+
+Using this feature, you will get the `/mnt/qsfs` on your host, being the same mount as `/mnt` inside
+the container.
+
+So anything going to `/mnt/zdbfs` on your host, is sent to qsfs.
+
 ## Docker image and workings
 
 By inspecting the Dockerfile we can immediately see that the `qsfs` image simply downloads all the needed components and puts them on the image (0-db-fs, 0-db, and 0-stor). It also downloads the extra `zinit`component that is not explained above.

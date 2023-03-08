@@ -1,5 +1,11 @@
 # Troubleshooting
 
+This troubleshooting guide is specific for the docker container, there is also [general troubleshooting documentation](../docs/troubleshooting.md).
+
+## zstor logs
+
+zstor logs are in `/data/zstor.log`
+
 ## Only zstor is started, not the local zdb and 0-db-fs
 
 Verify: execute `zinit list` in a shell minside the running container.

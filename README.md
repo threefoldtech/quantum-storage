@@ -29,16 +29,10 @@ to use a real backend out-of-box.
 Everything will be installed in `~/.threefold` and nowhere else.
 This bootstrap will spawn two `zdb`, one `zstor daemon` and the `zdbfs` fuse system.
 
-## Extra Feature
+## Manual setup
 
-You can use a special option with docker to mount-share the container mountpoint:
+The documentation has a guide [how to set up qsfs manually](docs/manual_setup.md).
 
-```bash
-mkdir /mnt/qsfs
-docker run [...] --mount type=bind,source=/mnt/qsfs,target=/mnt,bind-propagation=rshared ghcr.io/threefoldtech/qsfs
-```
+## Docker
 
-Using this feature, you will get the `/mnt/qsfs` on your host, being the same mount as `/mnt` inside
-the container.
-
-So anything going to `/mnt/zdbfs` on your host, is sent to qsfs.
+See the [docker image documentation](docker/README.md).
