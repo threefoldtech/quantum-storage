@@ -18,15 +18,58 @@ TODO: Link to how to install 0-db's on the grid.
 If the 0-db's are deployed on the grid, make sure you can connect to the Theefold Planetary network.
 This is already working if you are setting up qsfs on a VM on the grid, if not this needs to be configured (TODO: Link to docs).
 
+## Directories
+
+A qsfs mount point is required and a directory for qsfs to store the temporary data.
+This guide assumes `/mnt/qsfs` for the mount point and `/data` for the qsfs temporary data. Create them if they do not exist yet.
+
 ## Install the individual components
 
 `wget` the latest released binaries from the following components:
 
-- 0-db-fs: <https://github.com/threefoldtech/0-db-fs/releases>: take the `amd64-linux-static` binary and save at `/usr/local/bin/0-db-fs`
-- 0-db: <https://github.com/threefoldtech/0-db/releases>: take the static binary and sace at `/usr/local/bin/0-db`
-- 0-stor: <https://github.com/threefoldtech/0-stor_v2/releases>: take `linux-musl` binary and save at `/usr/local/bin/zstor`
+- 0-db-fs: <https://github.com/threefoldtech/0-db-fs/releases>: take the `amd64-linux-static` binary and save at `/bin/0-db-fs`
+- 0-db: <https://github.com/threefoldtech/0-db/releases>: take the static binary and sace at `/bin/0-db`
+- 0-stor: <https://github.com/threefoldtech/0-stor_v2/releases>: take `linux-musl` binary and save at `/bin/zstor`
 
-Make sure all binaries are executable:`chmod a+x /usr/local/bin/0-db-fs /usr/local/bin/0-db /usr/local/bin/zstor`
+Make sure all binaries are executable:`chmod a+x /bin/0-db-fs /bin/0-db /bin/zstor`
+
+## 0-stor
+
+Adapt the [example zstor configuration](./example_zstor_config.toml) to use the previously created 0-db's, set an [encryption key](./encryption.md) and save it at `/etc/zstor_default/toml`.
+
+Now `zstor` can be started: `/usr/local/bin/zstor -c /etc/zstor_default.toml monitor`. If you don't want the process to block your terminal, you can start it in the background: `nohup /tmp/zstor -c /etc/zstor_default.toml monitor &`.
+
+## Local 0-db
+
+First we will get the [hook script](../lib/zdb-hook.sh).  Download it to `/bin/zdb-hook.sh` and make sure it is executable (`chmod +x /bin/zdb-hook.sh`).
+
+The local 0-db which is used by 0-db-fs can now be started:
+
+```sh
+/bin/0-db \
+    --index /data/index \
+    --data /data/data \
+    --datasize 67108864 \
+    --mode seq \
+    --hook /bin/zdb-hook.sh \
+    --background
+```
+
+## 0-db-fs
+
+Finally, we will start 0-db-fs. This guides opts to mount the fuse filesystem in `/mnt/qsfs`.
+
+```sh
+/bin/0-db-fs /mnt/qsfs -o autons -o background
+```
+
+You should now have the qsfs filesystem mounted at `/mnt/qsfs`. As you write data, it will save it in the local 0-db, and it's data containers will be periodically encoded and uploaded to the backend data storage 0-db's.
+
+## Monitoring, alerting and statistics
+
+0-stor collects metrics about the system. It can be configured with a 0-db-fs mountpoint, which will trigger 0-stor to collect 0-db-fs statistics, next to some 0-db statistics which are always collected. If the prometheus_port config option is set, 0-stor will serve metrics on this port for scraping by prometheus.
+
+If you followed the same configuration in `/retc/zstor_default.toml` as in the [example](./example_zstor_config.toml) you will be able to access these metrics by executing curl localhost:9100/metrics
 
 ## It does not work
 
