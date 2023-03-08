@@ -13,7 +13,7 @@ In the 0-stor config, set the following properties to these fixed paths:
 ```toml
 zdbfs_mountpoint = "/mnt"
 socket = "/var/run/zstor.sock"
-zdb_data_dir_path = "/data/data"
+zdb_data_dir_path = "/data/data/zdbfs-data"
 ```
 
 There's no need to set the `root` property.

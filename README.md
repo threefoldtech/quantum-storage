@@ -29,10 +29,8 @@ to use a real backend out-of-box.
 Everything will be installed in `~/.threefold` and nowhere else.
 This bootstrap will spawn two `zdb`, one `zstor daemon` and the `zdbfs` fuse system.
 
-## Manual setup
+## Other documentation
 
-The documentation has a guide [how to set up qsfs manually](docs/manual_setup.md).
-
-## Docker
-
-See the [docker image documentation](docker/README.md).
+- [Set up qsfs manually](docs/manual_setup.md).
+- [Docker image documentation](docker/README.md).
+- [Operations guide](docs/operations.md)

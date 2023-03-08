@@ -1,5 +1,9 @@
 # Troubleshooting
 
+## zstor status
+
+the `zstor -c <zstor_config.toml> status` command gives an overview of the backend 0-db's, if they are reachable or not and the storage space they consume.
+
 ## Error: ZstorError
 
 ```log
@@ -46,4 +50,4 @@ The zstor config has an invalid `root` property set. Set it to where the local 0
 2023-03-03 13:25:56 +00:00: DEBUG Metadata for file "/data/index/zdbfs-meta/zdb-namespace" not found.
 ```
 
-The zstor redundancy configuration (probably redant groups or redundant nodes) is not configured correctly ( maybe it's set too high).
+The zstor redundancy configuration (probably redundant groups or redundant nodes) is not configured correctly ( maybe it's set too high).

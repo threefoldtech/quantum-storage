@@ -65,12 +65,6 @@ Finally, we will start 0-db-fs. This guides opts to mount the fuse filesystem in
 
 You should now have the qsfs filesystem mounted at `/mnt/qsfs`. As you write data, it will save it in the local 0-db, and it's data containers will be periodically encoded and uploaded to the backend data storage 0-db's.
 
-## Monitoring, alerting and statistics
-
-0-stor collects metrics about the system. It can be configured with a 0-db-fs mountpoint, which will trigger 0-stor to collect 0-db-fs statistics, next to some 0-db statistics which are always collected. If the prometheus_port config option is set, 0-stor will serve metrics on this port for scraping by prometheus.
-
-If you followed the same configuration in `/retc/zstor_default.toml` as in the [example](./example_zstor_config.toml) you will be able to access these metrics by executing curl localhost:9100/metrics
-
 ## It does not work
 
 Check the [troubleshooting guide](./troubleshooting.md).
