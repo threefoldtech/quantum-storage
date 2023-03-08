@@ -103,3 +103,7 @@ This brings us directly to the `wait_hooks` wait hooks is a pseudo service. It a
 - if `wait_hooks` takes longer than the `shutdown_timeout` which is set to a very large value, it's forcefully terminated (may be a smaller timeout should be better)
 - Once `wait_hooks` is done, zinit moves to the next service which is `zstor` in this case
 - `zstor` once it receive a TERM will also wait until all queued operations are handled, preventing the system from fully shutting down until all write operations are handled.
+
+## It does not work
+
+There is a seperate [troubleshooting guide](./troubleshooting/md).
