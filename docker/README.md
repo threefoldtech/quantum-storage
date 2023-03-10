@@ -30,7 +30,7 @@ Note:
 ## Fuse
 
 Make sure the container host has the fuse kernel module loaded ( `modprobe fuse`).
-Inside the container the fuse device needs to be available ( pass `--device /dev/fuse`) and the process inside the container needs to be authorised to use it ( use ``--privileged` or `--cap-add SYS_ADMIN`).
+Inside the container the fuse device needs to be available ( pass `--device /dev/fuse`) and the process inside the container needs to be authorised to use it ( use `--privileged` or `--cap-add SYS_ADMIN`).
 
 ## Running
 
