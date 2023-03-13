@@ -22,12 +22,10 @@ Once the zdb segment file is restored, the read operation continues.
 
 ## Bootstrap
 
-You can use the bootstrap (`bootstrap/bootstrap.v`) to download and starts required components and start
-everything required. Default configuration use everything localy. You can pass a specific zstor configuration file
-to use a real backend out-of-box.
+You can use the bootstrap (`bootstrap/bootstrap.v`) to download therequired components and start everything. The default configuration uses everything localy. You can pass a specific zstor configuration file to use a real backend.
 
 Everything will be installed in `~/.threefold` and nowhere else.
-This bootstrap will spawn two `zdb`, one `zstor daemon` and the `zdbfs` fuse system.
+This bootstrap will spawn two `zdb`'s', one `zstor daemon` and the `zdbfs` fuse system.
 
 ## Other documentation
 
