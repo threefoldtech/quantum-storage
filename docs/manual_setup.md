@@ -13,7 +13,7 @@ Install the fuse kernel module : `apt-get update && apt-get install fuse3`
 In order to sstore the data in remote locations, you need to have 0-db's.
 4 0-db's are needed for the metadata and m+n for the data, n being the number of 0-db's that can be lost without data loss ( m 0-db's are required to restore the data ).
 
-TODO: Link to how to install 0-db's on the grid.
+How to deploy 0-db's for qsfs on the Threefold grid is explained in the [manual](https://www2.manual.grid.tf/javascript/grid3_javascript_qsfs_zdbs.html).
 
 If the 0-db's are deployed on the grid, make sure you can connect to the Theefold Planetary network.
 This is already working if you are setting up qsfs on a VM on the grid, if not this needs to be configured (TODO: Link to docs).
