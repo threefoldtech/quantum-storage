@@ -364,9 +364,9 @@ fn config_set(config string, name string, value string) string {
 	return res
 }
 
-fn config_update(path string, rootdir string) ? string {
+fn config_update(path string, rootdir string) ! string {
 	// read original config file
-	mut data := os.read_file(path)?
+	mut data := os.read_file(path)!
 
 	// update settings
 	data = config_set(data, "root", rootdir)
@@ -375,7 +375,7 @@ fn config_update(path string, rootdir string) ? string {
 	data = config_set(data, "zdbfs_mountpoint", rootdir + "/mnt/zdbfs")
 
 	// overwrite config file
-	os.write_file(path, data)?
+	os.write_file(path, data)!
 
 	return data
 }
@@ -412,7 +412,7 @@ fn main() {
 	extract(rootdir, resources)
 
 	println("[+] updating: local zstor configuration file")
-	config_update(rootdir + "/etc/zstor-default.toml", rootdir)?
+	config_update(rootdir + "/etc/zstor-default.toml", rootdir)!
 
 	islocal := (resources.zstor == "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/config/zstor-sample-local.toml")
 
