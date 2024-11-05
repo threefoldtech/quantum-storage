@@ -1,0 +1,20 @@
+minimal_shards = 2
+expected_shards = 4
+redundant_groups = 0
+redundant_nodes = 0
+root = "/"
+zdbfs_mountpoint = "/mnt/qsfs"
+socket = "/tmp/zstor.sock"
+prometheus_port = 9100
+zdb_data_dir_path = "/data/data/zdbfs-data/"
+max_zdb_data_dir_size = 2560
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "zdb"
+
+[meta.config]
+prefix = "zstor-meta"
+
