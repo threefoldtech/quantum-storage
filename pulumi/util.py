@@ -7,19 +7,22 @@ def run_script_ssh(ip, script):
         log_filename = f"ssh.{counter}.log"
         try:
             with open(log_filename, "x") as logfile:
-                subprocess.run(
-                    [
-                        "ssh",
-                        "-oStrictHostKeyChecking=accept-new",
-                        "-oConnectionAttempts=5",
-                        "root@" + ip,
-                        # "bash",
-                        # "-c",
-                        script,
-                    ],
-                    stdout=logfile,
-                    stderr=logfile,
-                )
+                with open(script, "r") as scriptfile:
+                    script_contents = scriptfile.read()
+                    subprocess.run(
+                        [
+                            "ssh",
+                            "-oStrictHostKeyChecking=accept-new",
+                            "-oConnectionAttempts=5",
+                            "root@" + ip,
+                            "bash",
+                            " -s",
+                        ],
+                        input=script_contents,
+                        text=True,
+                        stdout=logfile,
+                        stderr=logfile,
+                    )
                 break
         except FileExistsError:
             counter += 1
