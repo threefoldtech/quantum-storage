@@ -17,6 +17,8 @@ except ModuleNotFoundError:
 # Same for the base zstor config. Exit if the user didn't provide this
 ZSTOR_CONFIG_BASE = "zstor_config.base.toml"
 ZSTOR_CONFIG = "zstor_config.toml"
+# This path is hard coded in the Zdb hook script
+ZSTOR_CONFIG_REMOTE = "/etc/zstor-default.toml"
 
 if not os.path.exists(ZSTOR_CONFIG_BASE):
     exit("zstor_config.base.toml not found. Exiting.")
@@ -57,11 +59,15 @@ zstor_key = pulumi_random.RandomBytes("zstor_key", length=32)
 zdb_pw = pulumi_random.RandomPassword("zdb_pw", length=20)
 
 if vars.ZDB_CONNECTION == "ipv6":
-    ZDB_INDEX = ZDB_IP6_INDEX
+    ZDB_IP_INDEX = ZDB_IP6_INDEX
 elif vars.ZDB_CONNECTION == "mycelium":
-    ZDB_INDEX = ZDB_MYC_INDEX
+    ZDB_IP_INDEX = ZDB_MYC_INDEX
 
-provider = threefold.Provider("provider", mnemonic=MNEMONIC, network=NETWORK)
+provider = threefold.Provider(
+    "provider",
+    mnemonic=MNEMONIC,
+    network=NETWORK,
+)
 
 network = threefold.Network(
     "network",
@@ -163,7 +169,7 @@ def post_deploy(args):
         """
         file.write(textwrap.dedent(encryption_config))
         for zdb in meta_zdbs:
-            ip = zdb["ips"][ZDB_INDEX]
+            ip = zdb["ips"][ZDB_IP_INDEX]
             ns = zdb["namespace"]
             file.write("[[meta.config.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
@@ -172,7 +178,7 @@ def post_deploy(args):
 
         file.write("[[groups]]\n")
         for zdb in data_zdbs:
-            ip = zdb["ips"][ZDB_INDEX]
+            ip = zdb["ips"][ZDB_IP_INDEX]
             ns = zdb["namespace"]
             file.write("[[groups.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
@@ -182,7 +188,7 @@ def post_deploy(args):
     # ssh_ip = vm["mycelium_ip"]
     ssh_ip = vm["computed_ip6"].split("/")[0]
     util.scp(ssh_ip, "zinit/", "/etc/")
-    util.scp(ssh_ip, ZSTOR_CONFIG, f"/etc/{ZSTOR_CONFIG}")
+    util.scp(ssh_ip, ZSTOR_CONFIG, ZSTOR_CONFIG_REMOTE)
     util.run_script_ssh(ssh_ip, POST_DEPLOY_SCRIPT)
 
 

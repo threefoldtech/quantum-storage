@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 # Primitive idempotency
 zinit | grep -q zstor && exit
 
