@@ -42,7 +42,7 @@ prefix = "zstor-meta"
 '''
 
 # Write to zstor_config.toml
-with open('zstor_config.toml', 'w') as f:
+with open('zstor_config.base.toml', 'w') as f:
     f.write(content)
 
 print("\nzstor_config.toml has been created successfully!")
