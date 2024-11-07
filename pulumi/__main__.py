@@ -8,20 +8,11 @@ import pulumi_threefold as threefold
 
 import util
 
-# Check if vars.py exists
-if not os.path.exists('vars.py'):
-    try:
-        print("vars.py not found. Running create_vars.py...")
-        import create_vars
-        # After running create_vars.py, try to import vars again
-        import vars
-    except Exception as e:
-        exit(f"Failed to create vars.py: {str(e)}")
-else:
-    try:
-        import vars
-    except ModuleNotFoundError:
-        exit("Error importing vars.py even though file exists. Check file contents.")
+# It's up to the user to create their own vars.py before trying to deploy
+try:
+    import vars
+except ModuleNotFoundError:
+    exit("vars.py not found. Exiting.")
 
 # Same for the base zstor config. Exit if the user didn't provide this
 ZSTOR_CONFIG_BASE = "zstor_config.base.toml"

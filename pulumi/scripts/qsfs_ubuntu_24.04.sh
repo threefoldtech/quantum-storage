@@ -27,6 +27,9 @@ chmod 700 ~/.ssh
 chmod 600 ~/.ssh/id_rsa
 chmod 644 ~/.ssh/id_rsa.pub
 
+# Create vars.py
+python3 create_vars.py
+
 # Start Pulumi
 pulumi login --local
 pulumi up
