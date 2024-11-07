@@ -29,6 +29,7 @@ chmod 644 ~/.ssh/id_rsa.pub
 
 # Create vars.py
 python3 create_vars.py
+python3 create_toml.py
 
 # Start Pulumi
 pulumi login --local
