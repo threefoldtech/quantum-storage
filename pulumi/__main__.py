@@ -2,6 +2,7 @@ import os
 import secrets
 import shutil
 import textwrap
+
 import pulumi
 import pulumi_random
 import pulumi_threefold as threefold
@@ -34,11 +35,12 @@ ZDB_IP6_INDEX = 0
 ZDB_MYC_INDEX = -1
 
 # From here are all the parameters for the deployment
-MNEMONIC = vars.MNEMONIC
-NETWORK = vars.NETWORK
+MNEMONIC = vars.MNEMONIC if vars.MNEMONIC else os.environ.get("MNEMONIC")
+NETWORK = vars.NETWORK if vars.NETWORK else os.environ.get("NETWORK")
 
-with open(os.path.expanduser("~/.ssh/id_rsa.pub")) as file:
-    SSH_KEY = file.read()
+SSH_KEY = vars.SSH_KEY if vars.SSH_KEY else util.get_ssh_key_from_disk()
+if not SSH_KEY:
+    SSH_KEY = input("Please enter your public SSH key: ")
 
 VM_NODE = vars.VM_NODE
 FLIST = "https://hub.grid.tf/tf-official-apps/threefoldtech-ubuntu-22.04.flist"
@@ -75,6 +77,7 @@ network = threefold.Network(
     description="A network",
     nodes=[VM_NODE],
     ip_range="10.1.0.0/16",
+    # TODO: for some reason the mycelium keys seem to get regenerated if we update the deployment (like replacing zdbs)
     mycelium=True,
     opts=pulumi.ResourceOptions(provider=provider),
 )
@@ -93,6 +96,7 @@ for node in nodes:
         vms.append(
             threefold.VMInputArgs(
                 name="vm",
+                node_id=node,
                 flist=FLIST,
                 entrypoint="/sbin/zinit init",
                 network_name=net_name,

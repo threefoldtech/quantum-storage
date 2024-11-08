@@ -1,5 +1,8 @@
+# These can also be specified as env vars with the same names
 MNEMONIC = "your words here"
 NETWORK = "test"
+# Public SSH key. If empty, we'll attempt to read it from ~/.ssh/*.pub
+SSH_KEY = ""
 
 # Node to deploy VM on. Can overlap with Zdb nodes or not, doesn't matter
 VM_NODE = 5
