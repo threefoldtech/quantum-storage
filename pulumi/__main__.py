@@ -201,6 +201,8 @@ def post_deploy(args):
     util.scp(ssh_ip, ZSTOR_CONFIG, ZSTOR_CONFIG_REMOTE)
     if os.path.isfile("prometheus.yaml"):
         util.scp(ssh_ip, "prometheus.yaml", "/etc/")
+    if os.path.isfile("zstor"):
+        util.scp(ssh_ip, "zstor", "/usr/bin/")
     util.run_script_ssh(ssh_ip, POST_DEPLOY_SCRIPT)
 
 

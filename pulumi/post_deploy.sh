@@ -6,10 +6,23 @@ set -x
 zinit | grep -q zstor && exit
 
 # Grab binaries and hook script. Make sure that all are executable
-wget -O /usr/local/bin/zdbfs https://github.com/threefoldtech/0-db-fs/releases/download/v0.1.11/zdbfs-0.1.11-amd64-linux-static
-wget -O /usr/local/bin/zdb https://github.com/threefoldtech/0-db/releases/download/v2.0.8/zdb-2.0.8-linux-amd64-static
-wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v0.4.0/zstor_v2-x86_64-linux-musl
-wget -O /usr/local/bin/zdb-hook.sh https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/zdb-hook.sh
+# We check first if the files exist, to support testing other builds by
+# uploading them into the VM before running this script
+if ! [ -f /usr/local/bin/zdbfs ]; then
+    wget -O /usr/local/bin/zdbfs https://github.com/threefoldtech/0-db-fs/releases/download/v0.1.11/zdbfs-0.1.11-amd64-linux-static
+fi
+
+if ! [ -f /usr/local/bin/zdb ]; then
+    wget -O /usr/local/bin/zdb https://github.com/threefoldtech/0-db/releases/download/v2.0.8/zdb-2.0.8-linux-amd64-static
+fi
+
+if ! [ -f /usr/local/bin/zdb-hook.sh ]; then
+    wget -O /usr/local/bin/zdb-hook.sh https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/zdb-hook.sh
+fi
+
+if ! [ -f /bin/zstor ]; then
+    wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v0.4.0/zstor_v2-x86_64-linux-musl
+fi
 
 echo
 echo Setting permissions for downloaded binaries
