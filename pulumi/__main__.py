@@ -199,6 +199,8 @@ def post_deploy(args):
     # Do we also need to wait here in case ping starts working before SSH?
     util.scp(ssh_ip, "zinit/", "/etc/")
     util.scp(ssh_ip, ZSTOR_CONFIG, ZSTOR_CONFIG_REMOTE)
+    if os.path.isfile("prometheus.yaml"):
+        util.scp(ssh_ip, "prometheus.yaml", "/etc/")
     util.run_script_ssh(ssh_ip, POST_DEPLOY_SCRIPT)
 
 

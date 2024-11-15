@@ -25,7 +25,18 @@ zinit monitor zstor
 zinit monitor zdb
 zinit monitor zdbfs
 
+# If user didn't supply a prometheus config, then give the files a non "yaml"
+# extension so zinit doesn't start them if the VM reboots
+if [ -f /etc/prometheus.yaml ]; then
+    apt install -y prometheus
+    zinit monitor node-exporter
+    zinit monitor prometheus
+else
+    mv /etc/zinit/prometheus.yaml /etc/zinit/prometheus.yaml.deactivated
+    mv /etc/zinit/node-exporter.yaml /etc/zinit/node-exporter.yaml.deactivated
+fi
+
 # Zdbfs will fail on first attempt because zdb isn't ready yet (could add a
 # test to zdb to fix this, maybe using redis-cli, nc, or ss)
-sleep 1 
+sleep 1
 zinit

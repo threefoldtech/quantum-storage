@@ -5,7 +5,7 @@ redundant_nodes = 0
 root = "/"
 zdbfs_mountpoint = "/mnt/qsfs"
 socket = "/tmp/zstor.sock"
-prometheus_port = 9100
+prometheus_port = 9200
 zdb_data_dir_path = "/data/data/zdbfs-data/"
 max_zdb_data_dir_size = 2560
 
