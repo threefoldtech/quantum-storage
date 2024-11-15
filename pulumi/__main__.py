@@ -15,6 +15,10 @@ try:
 except ModuleNotFoundError:
     exit("vars.py not found. Exiting.")
 
+# How many times we try pinging the VM after deployment before proceeding with
+# SSH based commands. Total time to wait will be this times 10 seconds
+PING_RETRIES = 10
+
 # Same for the base zstor config. Exit if the user didn't provide this
 ZSTOR_CONFIG_BASE = "zstor_config.base.toml"
 ZSTOR_CONFIG = "zstor_config.toml"
@@ -191,6 +195,8 @@ def post_deploy(args):
 
     # ssh_ip = vm["mycelium_ip"]
     ssh_ip = vm["computed_ip6"].split("/")[0]
+    util.wait_for_host(ssh_ip, PING_RETRIES)
+    # Do we also need to wait here in case ping starts working before SSH?
     util.scp(ssh_ip, "zinit/", "/etc/")
     util.scp(ssh_ip, ZSTOR_CONFIG, ZSTOR_CONFIG_REMOTE)
     util.run_script_ssh(ssh_ip, POST_DEPLOY_SCRIPT)

@@ -72,3 +72,24 @@ def get_ssh_key_from_disk():
             continue
 
     return ssh_key
+
+
+def wait_for_host(host, max_retries=None):
+    """Ping a host until it responds or max retries is reached. Since the default timeout on Linux systems is typically 10 seconds, the total timeout will be that times the number of retries."""
+    import subprocess
+
+    retry_count = 0
+
+    while True:
+        if max_retries and retry_count >= max_retries:
+            return False
+
+        try:
+            # Ping the host once
+            command = ["ping", "-c", "1", host]
+            subprocess.check_output(command)
+            return True
+
+        except subprocess.CalledProcessError:
+            retry_count += 1
+            continue
