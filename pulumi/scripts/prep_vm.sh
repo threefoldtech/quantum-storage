@@ -1,9 +1,8 @@
 #!/bin/bash
 
-set -x
+# This script installs all binaries and scripts needed for QSFS. It doesn't actually start up the services though
 
-# Primitive idempotency
-zinit | grep -q zstor && exit
+set -x
 
 # Grab binaries and hook script. Make sure that all are executable
 # We check first if the files exist, to support testing other builds by
@@ -27,29 +26,3 @@ fi
 echo
 echo Setting permissions for downloaded binaries
 chmod +x /usr/local/bin/* /bin/zstor
-
-echo
-echo Creating Zdbfs mountpoint
-mkdir -p /mnt/qsfs
-
-echo
-echo Starting up zinit services
-zinit monitor zstor
-zinit monitor zdb
-zinit monitor zdbfs
-
-# If user didn't supply a prometheus config, then give the files a non "yaml"
-# extension so zinit doesn't start them if the VM reboots
-if [ -f /etc/prometheus.yaml ]; then
-    apt install -y prometheus
-    zinit monitor node-exporter
-    zinit monitor prometheus
-else
-    mv /etc/zinit/prometheus.yaml /etc/zinit/prometheus.yaml.deactivated
-    mv /etc/zinit/node-exporter.yaml /etc/zinit/node-exporter.yaml.deactivated
-fi
-
-# Zdbfs will fail on first attempt because zdb isn't ready yet (could add a
-# test to zdb to fix this, maybe using redis-cli, nc, or ss)
-sleep 1
-zinit

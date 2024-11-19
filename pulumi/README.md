@@ -21,7 +21,7 @@ We need some Python packages to make this work. Using a venv is recommended.
 ```
 python -m venv .venv
 source .venv/bin/activate
-pip install pulumi pulumi_random pulumi_threefold
+pip install pulumi pulumi_random pulumi_command pulumi_threefold
 ```
 
 ## Prep config
