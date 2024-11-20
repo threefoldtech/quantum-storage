@@ -26,3 +26,10 @@ fi
 echo
 echo Setting permissions for downloaded binaries
 chmod +x /usr/local/bin/* /bin/zstor
+
+if [ -f /etc/prometheus.yaml ]; then
+    echo
+    echo Installing Prometheus
+    apt update
+    apt install -y prometheus
+fi

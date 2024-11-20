@@ -25,10 +25,6 @@ zinit monitor zdbfs
 
 if [ -f /etc/prometheus.yaml ]; then
     echo
-    echo Installing Prometheus
-    apt install -y prometheus
-
-    echo
     echo Copying Prometheus zinit service files
     cp /root/zinit/node-exporter.yaml /etc/zinit
     cp /root/zinit/prometheus.yaml /etc/zinit
