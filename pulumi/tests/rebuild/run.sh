@@ -1,6 +1,6 @@
 #!/bin/bash
 
-scripts/deploy.sh
-scripts/write_data.sh
-scripts/redeploy.sh
-scripts/destroy.sh
+test-scripts/deploy.sh
+test-scripts/write_data.sh
+test-scripts/redeploy.sh
+test-scripts/destroy.sh

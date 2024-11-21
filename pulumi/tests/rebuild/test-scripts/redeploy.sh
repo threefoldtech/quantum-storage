@@ -14,6 +14,6 @@ ssh -t root@$ipv6 '
   pkill zstor -SIGUSR1
   # Wait some time to let the rebuild process start. This should be enough?
   sleep 10 
-  # Output should show us if any data has been written to the new backends yet
-  zstor -c /etc/zstor-default.toml status
 '
+
+# TODO: Need to figure out a way to check whether rebuilding has succeeded.
