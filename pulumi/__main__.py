@@ -24,13 +24,9 @@ try:
 except ModuleNotFoundError:
     exit("vars.py not found. Exiting.")
 
-# How many times we try pinging the VM after deployment before proceeding with
-# SSH based commands. Total time to wait will be this times 10 seconds
-PING_RETRIES = 10
-
 # Same for the base zstor config. Exit if the user didn't provide this
 ZSTOR_CONFIG_BASE = "zstor_config.base.toml"
-ZSTOR_CONFIG_PATH = "zstor_config{}.toml"
+ZSTOR_CONFIG_PATH = "zstor_config.toml"
 # This path is hard coded in the Zdb hook script
 ZSTOR_CONFIG_REMOTE = "/etc/zstor-default.toml"
 
@@ -174,7 +170,7 @@ def make_zstor_config(args):
     # file. Here we always choose a new local path and leave the old files
     # around just in case
     i = 1
-    while os.path.exists(path := ZSTOR_CONFIG_PATH.format(i)):
+    while os.path.exists(path := ZSTOR_CONFIG_PATH + "." + str(i)):
         i += 1
 
     shutil.copy(ZSTOR_CONFIG_BASE, path)
@@ -224,7 +220,7 @@ def make_zstor_config(args):
     # This way the current file is always in the same place and we get around
     # the fact that it's not possible to return a path from this function and
     # use it as a FileAsset, because you can't pass an Output to FileAsset
-    shutil.copy(path, ZSTOR_CONFIG_PATH.format(""))
+    shutil.copy(path, ZSTOR_CONFIG_PATH)
 
     # TODO: check if the new file is actually different than the previous one
     # and if not, delete it. I guess we could have some better logic to
@@ -246,7 +242,7 @@ depends = []
 copy_zstor_config = pulumi_command.remote.CopyToRemote(
     "copy_zstor_config",
     connection=conn,
-    source=pulumi.FileAsset(ZSTOR_CONFIG_PATH.format("")),
+    source=pulumi.FileAsset(ZSTOR_CONFIG_PATH),
     remote_path=ZSTOR_CONFIG_REMOTE,
     triggers=[conn.host],
 )
