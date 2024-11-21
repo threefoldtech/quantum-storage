@@ -55,3 +55,17 @@ If you want to destroy the deployment, bring it down like this:
 ```
 pulumi down
 ```
+
+## Recover to new VM
+
+If you need to replace the frontend VM for any reason, such as a node outage, follow these steps. Any data that has been uploaded to the backends can be recovered into the new VM. Any data that was not yet uploaded to the backends will be lost.
+
+1. Update the `vars.py` file and set `VM_NODE` to the new node id
+2. Destroy the old VM and deploy the new VM by running `pulumi up`
+3. SSH to the new VM and run the recovery script:
+
+```
+bash /root/scripts/recover.sh
+```
+
+If all went well, your files should appear under the mount point, `/mnt/qsfs`.
