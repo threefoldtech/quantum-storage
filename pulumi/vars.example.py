@@ -14,7 +14,7 @@ VM_NODE = 5
 META_NODES = [1, 3, 5, 8]
 DATA_NODES = [1, 3, 5, 8]
 
-# Size of each data backend Zdb
+# Size of each data backend Zdb in GB
 DATA_SIZE = 1
 
 # Network used to connect to the backend zdbs
