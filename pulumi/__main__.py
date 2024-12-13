@@ -2,6 +2,7 @@ import os
 import secrets
 import shutil
 import textwrap
+from pathlib import Path
 
 import pulumi
 import pulumi_random
@@ -229,7 +230,7 @@ def make_zstor_config(args):
     # config file is the same
 
 
-pulumi.Output.all(
+zstor_config_output = pulumi.Output.all(
     deployments=[(d.vms_computed, d.zdbs_computed) for d in deployments.values()],
     zstor_key=zstor_key.hex,
     zdb_pw=zdb_pw.result,
@@ -239,6 +240,10 @@ vm = deployments[VM_NODE].vms_computed[0]
 conn = make_ssh_connection(vm)
 depends = []
 
+# CopyToRemote requires that there's any file in the path after the initial run
+# of the code or it crashes. So we just put a dummy file here if needed. The
+# config will get written and pulled into the VM anyway
+Path(ZSTOR_CONFIG_PATH).touch()
 copy_zstor_config = pulumi_command.remote.CopyToRemote(
     "copy_zstor_config",
     connection=conn,
@@ -249,6 +254,7 @@ copy_zstor_config = pulumi_command.remote.CopyToRemote(
     # upload the config again: when the vm is changed and when any zdb is
     # changed
     triggers=list(deployments.values()),
+    opts=pulumi.ResourceOptions(depends_on=[zstor_config_output]),
 )
 
 

@@ -2,8 +2,8 @@
 
 MNEMONIC = ""
 NETWORK = "test"
-# Public SSH key. If empty, we'll attempt to read it from ~/.ssh/*.pub
-SSH_KEY = ""
+
+SSH_KEY_PATH = "~/.ssh/id_rsa"
 
 # Node to deploy VM on. Can overlap with Zdb nodes or not, doesn't matter
 VM_NODE = 5
@@ -18,3 +18,7 @@ DATA_SIZE = 1
 # Network used to connect to the backend zdbs
 # ZDB_CONNECTION = "mycelium"
 ZDB_CONNECTION = "ipv6"
+
+# Network used for SSH connection
+# SSH_CONNECTION = "mycelium"
+SSH_CONNECTION = "ipv6"

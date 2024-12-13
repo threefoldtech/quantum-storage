@@ -5,7 +5,7 @@ echo -e "\n===== Calculating MD5 hashes of stored files ====="
 # the new hashes file since we might run this multiple times
 rm -f /root/data/md5s_new
 for i in {1..10}; do
-  md5sum /mnt/qsfs/file$i.dat | cut -d " " -f 1 >> /root/data/md5s_new
+  md5sum /mnt/qsfs/file$i.dat | cut -d " " -f 1 | tee -a /root/data/md5s_new
 done
 
 echo -e "\n===== Comparing hashes ===="

@@ -16,7 +16,7 @@ done
 
 echo -e "\n===== Calculating MD5 checksums of source files ====="
 # Calculate and MD5 sum for each file and write to file
-touch /root/data/md5s_original
+rm -f /root/data/md5s_original
 for i in {1..10}; do
-  md5sum /root/data/file$i.dat | cut -d " " -f 1 >> /root/data/md5s_original
+  md5sum /root/data/file$i.dat | cut -d " " -f 1 | tee -a /root/data/md5s_original
 done

@@ -23,4 +23,5 @@ for file in /data/data/zdbfs-data/*; do
   while ! zstor -c /etc/zstor-default.toml check --file "$file" &> /dev/null; do
     sleep 2
   done
+  echo $file
 done

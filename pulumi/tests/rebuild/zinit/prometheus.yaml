@@ -1,1 +1,0 @@
-exec: prometheus --config.file=/etc/prometheus.yaml
