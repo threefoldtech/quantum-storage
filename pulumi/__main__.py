@@ -244,7 +244,11 @@ copy_zstor_config = pulumi_command.remote.CopyToRemote(
     connection=conn,
     source=pulumi.FileAsset(ZSTOR_CONFIG_PATH),
     remote_path=ZSTOR_CONFIG_REMOTE,
-    triggers=[conn.host],
+    # triggers=[conn.host],
+    # TODO: need to verify that that this works in both cases where we need to
+    # upload the config again: when the vm is changed and when any zdb is
+    # changed
+    triggers=list(deployments.values()),
 )
 
 
