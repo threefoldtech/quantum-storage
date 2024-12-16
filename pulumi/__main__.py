@@ -75,6 +75,10 @@ if ZDB_CONNECTION == "ipv6":
 elif ZDB_CONNECTION == "mycelium":
     ZDB_IP_INDEX = ZDB_MYC_INDEX
 
+# CopyToRemote requires that the path used contains some file from the start, so
+# we just put an empty one there if needed
+Path(ZSTOR_CONFIG_PATH).touch()
+
 provider = threefold.Provider(
     "provider",
     mnemonic=MNEMONIC,
@@ -89,39 +93,41 @@ network = threefold.Network(
     ip_range="10.1.0.0/16",
     # With mycelium enabled, we can't redeploy the vm
     # https://github.com/threefoldtech/pulumi-threefold/issues/552
+    # Maybe it's okay though if we use separate deployements for vm and zdbs?
     # mycelium=True,
     opts=pulumi.ResourceOptions(provider=provider),
 )
 
-nodes = set([VM_NODE] + META_NODES + DATA_NODES)
-
-deployments = {}
-
-for node in nodes:
-    net_name = NET_NAME
-    vms = []
-    depends = []
-    if node == VM_NODE:
-        net_name = NET_NAME
-        depends.append(network)
-        vms.append(
-            threefold.VMInputArgs(
-                name="vm",
-                node_id=node,
-                flist=FLIST,
-                entrypoint="/sbin/zinit init",
-                network_name=net_name,
-                cpu=CPU,
-                memory=RAM,
-                rootfs_size=ROOTFS,
-                # mycelium=True,
-                planetary=True,
-                public_ip6=True,
-                env_vars={
-                    "SSH_KEY": ssh_public_key,
-                },
-            )
+vm_deployment = threefold.Deployment(
+    "vm_deployment",
+    node_id=VM_NODE,
+    name="vm",
+    network_name=NET_NAME,
+    vms=[
+        threefold.VMInputArgs(
+            name="vm",
+            node_id=VM_NODE,
+            flist=FLIST,
+            entrypoint="/sbin/zinit init",
+            network_name=NET_NAME,
+            cpu=CPU,
+            memory=RAM,
+            rootfs_size=ROOTFS,
+            # mycelium=True,
+            planetary=True,
+            public_ip6=True,
+            env_vars={
+                "SSH_KEY": ssh_public_key,
+            },
         )
+    ],
+    opts=pulumi.ResourceOptions(provider=provider, depends_on=[network]),
+)
+
+zdb_nodes = set(META_NODES + DATA_NODES)
+zdb_deployments = []
+
+for node in zdb_nodes:
     zdbs = []
     if node in DATA_NODES:
         zdbs.append(
@@ -142,14 +148,14 @@ for node in nodes:
             )
         )
 
-    deployments[node] = threefold.Deployment(
-        "deployment" + str(node),
-        node_id=node,
-        name="node" + str(node),
-        network_name=net_name,
-        vms=vms,
-        zdbs=zdbs,
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=depends),
+    zdb_deployments.append(
+        threefold.Deployment(
+            "zdb_deployment" + str(node),
+            node_id=node,
+            name="node" + str(node),
+            zdbs=zdbs,
+            opts=pulumi.ResourceOptions(provider=provider),
+        )
     )
 
 
@@ -176,13 +182,11 @@ def make_zstor_config(args):
 
     shutil.copy(ZSTOR_CONFIG_BASE, path)
 
+    vm = args["vm"]
     meta_zdbs = []
     data_zdbs = []
-    for vm_list, zdb_list in args["deployments"]:
-        if vm_list:
-            vm = vm_list[0]
-
-        for zdb in zdb_list:
+    for zdbs in args["zdbs"]:
+        for zdb in zdbs:
             if "meta" in zdb["namespace"]:
                 meta_zdbs.append(zdb)
             else:
@@ -221,29 +225,25 @@ def make_zstor_config(args):
     # This way the current file is always in the same place and we get around
     # the fact that it's not possible to return a path from this function and
     # use it as a FileAsset, because you can't pass an Output to FileAsset
-    shutil.copy(path, ZSTOR_CONFIG_PATH)
-
-    # TODO: check if the new file is actually different than the previous one
-    # and if not, delete it. I guess we could have some better logic to
-    # actually detect if the zdbs have changed, but we still need to do the bit
-    # below to copy the file to the VM whenever we replace the VM, even if the
-    # config file is the same
+    if not open(path).read() == open(ZSTOR_CONFIG_PATH).read():
+        shutil.copy(path, ZSTOR_CONFIG_PATH)
+    else:
+        # We end up regenerating the same file from time to time for reasons
+        # that may or may not be unavoidable. For now, just delete duplicates
+        os.remove(path)
 
 
 zstor_config_output = pulumi.Output.all(
-    deployments=[(d.vms_computed, d.zdbs_computed) for d in deployments.values()],
+    vm=vm_deployment.vms_computed[0],
+    zdbs=[d.zdbs_computed for d in zdb_deployments],
     zstor_key=zstor_key.hex,
     zdb_pw=zdb_pw.result,
 ).apply(make_zstor_config)
 
-vm = deployments[VM_NODE].vms_computed[0]
+vm = vm_deployment.vms_computed[0]
 conn = make_ssh_connection(vm)
 depends = []
 
-# CopyToRemote requires that there's any file in the path after the initial run
-# of the code or it crashes. So we just put a dummy file here if needed. The
-# config will get written and pulled into the VM anyway
-Path(ZSTOR_CONFIG_PATH).touch()
 copy_zstor_config = pulumi_command.remote.CopyToRemote(
     "copy_zstor_config",
     connection=conn,
@@ -253,7 +253,7 @@ copy_zstor_config = pulumi_command.remote.CopyToRemote(
     # TODO: need to verify that that this works in both cases where we need to
     # upload the config again: when the vm is changed and when any zdb is
     # changed
-    triggers=list(deployments.values()),
+    triggers=zdb_deployments + [vm_deployment],
     opts=pulumi.ResourceOptions(depends_on=[zstor_config_output]),
 )
 
