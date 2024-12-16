@@ -1,5 +1,4 @@
 import os
-import secrets
 import shutil
 import textwrap
 from pathlib import Path
@@ -65,8 +64,6 @@ NET_NAME = "net"
 META_SIZE = 1
 
 # Generate separate secrets for Zstor key and Zdb namespaces passwords
-ZSTOR_KEY = secrets.token_hex(32)
-ZDB_PW = secrets.token_urlsafe(32)
 zstor_key = pulumi_random.RandomBytes("zstor_key", length=32)
 zdb_pw = pulumi_random.RandomPassword("zdb_pw", length=20)
 
