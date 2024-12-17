@@ -56,6 +56,24 @@ If you want to destroy the deployment, bring it down like this:
 pulumi down
 ```
 
+## Replacing backends
+
+If you want to replace any data or metadata backends, just edit `vars.py` and run `pulumi up` again. Note that this is a destructive operation and any backends not present in the new config will be decomissioned. Data loss is possible if too many backends are decommissioned at one time without rebuilding the data. You must have the minimal shard count available to be able to reconstruct the data.
+
+After running `pulumi up` with the new config, the Pulumi script will automatically upload an updated Zstor config file to the VM. However, Zstor will not start using the new config automatically. You either need to restart Zstor or perform a hot reload of the config by sending the SIGUSR1 signal to Zstor:
+
+```
+pkill zstor -SIGUSR1
+```
+
+Once the new config is loaded, Zstor will automatically start writing data or metadata to the new backends to restore the desired shard count for each stored file. This can take up to ten minutes to be triggered.
+
+You can check the progress of rebuilding using the Zstor `status` command:
+
+```
+zstor -c /etc/zstor-default.toml status
+```
+
 ## Recover to new VM
 
 If you need to replace the frontend VM for any reason, such as a node outage, follow these steps. Any data that has been uploaded to the backends can be recovered into the new VM. Any data that was not yet uploaded to the backends will be lost.
