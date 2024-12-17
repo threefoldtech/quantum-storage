@@ -1,15 +1,15 @@
 # These are the original values used in the test
 
 MNEMONIC = ""
-NETWORK = "test"
+NETWORK = "main"
 
 SSH_KEY_PATH = "~/.ssh/id_rsa"
 
 # Node to deploy VM on. Can overlap with Zdb nodes or not, doesn't matter
-VM_NODE = 5
+VM_NODE = 13
 
 # Nodes to deploy Zdbs on
-META_NODES = [1, 2, 3, 5]
+META_NODES = [8, 10, 11, 13]
 DATA_NODES = META_NODES
 
 # Size of each data backend Zdb

@@ -14,11 +14,10 @@ for i in {1..10}; do
 done
 
 echo -e "\n===== Waiting for all data files to upload ====="
-# Here we are taking advantage of the fact that there is a 10 second delay
-# before the last data file gets rotated, as specified in zinit/zdb.yaml.
-# After the rotation, there will be a new file with a higher index number
-# that is not uploaded to zstor, but we do not care about that file since it
-# will have no data
+# At this point, all the data is in zdb data files. Since we set the rotation
+# time for 10 seconds, the last data file should get rotated and uploaded via
+# zstor without much delay. At that point, a new empty data file will be
+# created, which we don't care about
 for file in /data/data/zdbfs-data/*; do
   while ! zstor -c /etc/zstor-default.toml check --file "$file" &> /dev/null; do
     sleep 2

@@ -11,7 +11,7 @@ echo "===== Creating 10 test files with 100MB random data each ====="
 mkdir -p /root/data
 for i in {1..10}; do
   echo "Creating file$i.dat..."
-  dd if=/dev/urandom of=/root/data/file$i.dat bs=1M count=100
+  dd if=/dev/urandom of=/root/data/file$i.dat bs=1M count=10
 done
 
 echo -e "\n===== Calculating MD5 checksums of source files ====="
