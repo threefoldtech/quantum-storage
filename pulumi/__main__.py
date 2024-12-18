@@ -95,31 +95,34 @@ network = threefold.Network(
     opts=pulumi.ResourceOptions(provider=provider),
 )
 
-vm_deployment = threefold.Deployment(
-    "vm_deployment",
-    node_id=VM_NODE,
-    name="vm",
-    network_name=NET_NAME,
-    vms=[
-        threefold.VMInputArgs(
-            name="vm",
-            node_id=VM_NODE,
-            flist=FLIST,
-            entrypoint="/sbin/zinit init",
-            network_name=NET_NAME,
-            cpu=CPU,
-            memory=RAM,
-            rootfs_size=ROOTFS,
-            # mycelium=True,
-            planetary=True,
-            public_ip6=True,
-            env_vars={
-                "SSH_KEY": ssh_public_key,
-            },
-        )
-    ],
-    opts=pulumi.ResourceOptions(provider=provider, depends_on=[network]),
-)
+if VM_NODE is not None:
+    vm_deployment = threefold.Deployment(
+        "vm_deployment",
+        node_id=VM_NODE,
+        name="vm",
+        network_name=NET_NAME,
+        vms=[
+            threefold.VMInputArgs(
+                name="vm",
+                node_id=VM_NODE,
+                flist=FLIST,
+                entrypoint="/sbin/zinit init",
+                network_name=NET_NAME,
+                cpu=CPU,
+                memory=RAM,
+                rootfs_size=ROOTFS,
+                # mycelium=True,
+                planetary=True,
+                public_ip6=True,
+                env_vars={
+                    "SSH_KEY": ssh_public_key,
+                },
+            )
+        ],
+        opts=pulumi.ResourceOptions(provider=provider, depends_on=[network]),
+    )
+else:
+    vm_deployment = None
 
 zdb_nodes = set(META_NODES + DATA_NODES)
 zdb_deployments = []
@@ -237,84 +240,84 @@ zstor_config_output = pulumi.Output.all(
     zdb_pw=zdb_pw.result,
 ).apply(make_zstor_config)
 
-vm = vm_deployment.vms_computed[0]
-conn = make_ssh_connection(vm)
-depends = []
+if vm_deployment:
+    vm = vm_deployment.vms_computed[0]
+    conn = make_ssh_connection(vm)
+    depends = []
 
-copy_zstor_config = pulumi_command.remote.CopyToRemote(
-    "copy_zstor_config",
-    connection=conn,
-    source=pulumi.FileAsset(ZSTOR_CONFIG_PATH),
-    remote_path=ZSTOR_CONFIG_REMOTE,
-    # triggers=[conn.host],
-    # TODO: need to verify that that this works in both cases where we need to
-    # upload the config again: when the vm is changed and when any zdb is
-    # changed
-    triggers=zdb_deployments + [vm_deployment],
-    opts=pulumi.ResourceOptions(depends_on=[zstor_config_output]),
-)
-
-
-if os.path.isfile("prometheus.yaml"):
-    depends.append(
-        pulumi_command.remote.CopyToRemote(
-            "copy_prometheus",
-            connection=conn,
-            source=pulumi.FileAsset("prometheus.yaml"),
-            remote_path="/etc/prometheus.yaml",
-            triggers=[conn.host],
-        )
+    copy_zstor_config = pulumi_command.remote.CopyToRemote(
+        "copy_zstor_config",
+        connection=conn,
+        source=pulumi.FileAsset(ZSTOR_CONFIG_PATH),
+        remote_path=ZSTOR_CONFIG_REMOTE,
+        # triggers=[conn.host],
+        # TODO: need to verify that that this works in both cases where we need to
+        # upload the config again: when the vm is changed and when any zdb is
+        # changed
+        triggers=zdb_deployments + [vm_deployment],
+        opts=pulumi.ResourceOptions(depends_on=[zstor_config_output]),
     )
 
-# In case we want to test our own zstor binary, such as a prebuild
-if os.path.isfile("zstor"):
-    depends.append(
-        pulumi_command.remote.CopyToRemote(
-            "copy_zstor_binary",
-            connection=conn,
-            source=pulumi.FileAsset("zstor"),
-            remote_path="/usr/bin/zstor",
-            triggers=[conn.host],
+    if os.path.isfile("prometheus.yaml"):
+        depends.append(
+            pulumi_command.remote.CopyToRemote(
+                "copy_prometheus",
+                connection=conn,
+                source=pulumi.FileAsset("prometheus.yaml"),
+                remote_path="/etc/prometheus.yaml",
+                triggers=[conn.host],
+            )
         )
+
+    # In case we want to test our own zstor binary, such as a prebuild
+    if os.path.isfile("zstor"):
+        depends.append(
+            pulumi_command.remote.CopyToRemote(
+                "copy_zstor_binary",
+                connection=conn,
+                source=pulumi.FileAsset("zstor"),
+                remote_path="/usr/bin/zstor",
+                triggers=[conn.host],
+            )
+        )
+
+    # We put the zinit files under /root to start, so that the services don't get
+    # started accidentally on reboot. In the case of recovering on a new VM, we
+    # need to ensure some other steps are completed first
+    copy_zinit = pulumi_command.remote.CopyToRemote(
+        "copy_zinit",
+        connection=conn,
+        source=pulumi.FileArchive("zinit/"),
+        remote_path="/root/zinit/",
+        triggers=[conn.host],
     )
 
-# We put the zinit files under /root to start, so that the services don't get
-# started accidentally on reboot. In the case of recovering on a new VM, we
-# need to ensure some other steps are completed first
-copy_zinit = pulumi_command.remote.CopyToRemote(
-    "copy_zinit",
-    connection=conn,
-    source=pulumi.FileArchive("zinit/"),
-    remote_path="/root/zinit/",
-    triggers=[conn.host],
-)
+    copy_scripts = pulumi_command.remote.CopyToRemote(
+        "copy_scripts",
+        connection=conn,
+        source=pulumi.FileArchive("scripts/"),
+        remote_path="/root/scripts/",
+        triggers=[conn.host],
+    )
 
-copy_scripts = pulumi_command.remote.CopyToRemote(
-    "copy_scripts",
-    connection=conn,
-    source=pulumi.FileArchive("scripts/"),
-    remote_path="/root/scripts/",
-    triggers=[conn.host],
-)
+    depends.append(copy_scripts)
 
-depends.append(copy_scripts)
+    prep_vm = pulumi_command.remote.Command(
+        "prep_vm",
+        connection=conn,
+        create="bash /root/scripts/prep_vm.sh 2>&1 | tee > /var/log/prep_vm.log",
+        triggers=[conn.host],
+        opts=pulumi.ResourceOptions(depends_on=depends),
+    )
 
-prep_vm = pulumi_command.remote.Command(
-    "prep_vm",
-    connection=conn,
-    create="bash /root/scripts/prep_vm.sh 2>&1 | tee > /var/log/prep_vm.log",
-    triggers=[conn.host],
-    opts=pulumi.ResourceOptions(depends_on=depends),
-)
-
-depends.extend([prep_vm, copy_zinit, copy_zstor_config])
-pulumi_command.remote.Command(
-    "activate_qsfs",
-    connection=conn,
-    create="bash /root/scripts/activate_qsfs.sh 2>&1 | tee > /var/log/activate_qsfs.log",
-    update="",
-    opts=pulumi.ResourceOptions(depends_on=depends),
-)
+    depends.extend([prep_vm, copy_zinit, copy_zstor_config])
+    pulumi_command.remote.Command(
+        "activate_qsfs",
+        connection=conn,
+        create="bash /root/scripts/activate_qsfs.sh 2>&1 | tee > /var/log/activate_qsfs.log",
+        update="",
+        opts=pulumi.ResourceOptions(depends_on=depends),
+    )
 
 pulumi.export("mycelium_ip", vm.mycelium_ip)
 pulumi.export("pub_ipv6", vm.computed_ip6)
