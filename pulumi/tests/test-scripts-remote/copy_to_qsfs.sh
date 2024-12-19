@@ -18,9 +18,17 @@ echo -e "\n===== Waiting for all data files to upload ====="
 # time for 10 seconds, the last data file should get rotated and uploaded via
 # zstor without much delay. At that point, a new empty data file will be
 # created, which we don't care about
+ls -lh /data/data/zdbfs-data
 for file in /data/data/zdbfs-data/*; do
-  while ! zstor -c /etc/zstor-default.toml check --file "$file" &> /dev/null; do
+while true; do
+    # Originally we just looked at the exit code of `check` but this was not
+    # reliable. We need to wait for a hash output to be sure zstor has finished
+    # storing the file
+    check_output=$(zstor -c /etc/zstor-default.toml check --file "$file")
+    if [ ! -z "$check_output" ]; then
+      echo $file $check_output
+      break
+    fi
     sleep 2
   done
-  echo $file
 done
