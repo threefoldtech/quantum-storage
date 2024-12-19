@@ -82,20 +82,22 @@ provider = threefold.Provider(
     network=NETWORK,
 )
 
-network = threefold.Network(
-    "network",
-    name=NET_NAME,
-    description="A network",
-    nodes=[VM_NODE],
-    ip_range="10.1.0.0/16",
-    # With mycelium enabled, we can't redeploy the vm
-    # https://github.com/threefoldtech/pulumi-threefold/issues/552
-    # Maybe it's okay though if we use separate deployements for vm and zdbs?
-    # mycelium=True,
-    opts=pulumi.ResourceOptions(provider=provider),
-)
-
+# Deploying a VM is optional. Some users might want to use an existing VM or
+# another system for their QFS frontend
 if VM_NODE is not None:
+    network = threefold.Network(
+        "network",
+        name=NET_NAME,
+        description="A network",
+        nodes=[VM_NODE],
+        ip_range="10.1.0.0/16",
+        # With mycelium enabled, we can't redeploy the vm
+        # https://github.com/threefoldtech/pulumi-threefold/issues/552
+        # Maybe it's okay though if we use separate deployements for vm and zdbs?
+        # mycelium=True,
+        opts=pulumi.ResourceOptions(provider=provider),
+    )
+
     vm_deployment = threefold.Deployment(
         "vm_deployment",
         node_id=VM_NODE,
@@ -250,12 +252,11 @@ if vm_deployment:
         connection=conn,
         source=pulumi.FileAsset(ZSTOR_CONFIG_PATH),
         remote_path=ZSTOR_CONFIG_REMOTE,
-        # triggers=[conn.host],
-        # TODO: need to verify that that this works in both cases where we need to
-        # upload the config again: when the vm is changed and when any zdb is
-        # changed
-        triggers=zdb_deployments + [vm_deployment],
-        opts=pulumi.ResourceOptions(depends_on=[zstor_config_output]),
+        # Without this trigger, a new upload isn't triggered when the VM is
+        # replaced. However, the file on an existing VM gets updated just with
+        # zstor_config_output in the depends_on list
+        triggers=[conn.host],
+        opts=pulumi.ResourceOptions(depends_on=[zstor_config_output, vm_deployment]),
     )
 
     if os.path.isfile("prometheus.yaml"):
