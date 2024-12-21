@@ -16,12 +16,14 @@ echo Copying zinit service files
 cp /root/zinit/zstor.yaml /etc/zinit
 cp /root/zinit/zdb.yaml /etc/zinit
 cp /root/zinit/zdbfs.yaml /etc/zinit
+cp /root/zinit/retry-uploads.yaml /etc/zinit
 
 echo
 echo Starting up zinit services
 zinit monitor zstor
 zinit monitor zdb
 zinit monitor zdbfs
+zinit monitor retry-uploads
 
 if [ -f /etc/prometheus.yaml ]; then
     echo
