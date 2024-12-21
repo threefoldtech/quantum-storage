@@ -9,6 +9,7 @@ ipv6=$(pulumi stack -s test | grep pub_ipv6 | tr -s " " | cut -d ' ' -f 3 | cut 
 
 ssh -t root@$ipv6 /root/test-scripts/write_data.sh
 ssh -t root@$ipv6 /root/test-scripts/copy_to_qsfs.sh
+ssh -t root@$ipv6 /root/test-scripts/wait_all_uploads.sh
 ssh -t root@$ipv6 /root/test-scripts/check_hashes.sh
 
 # Store a copy of the hashes locally, in case we redeploy the VM
