@@ -11,10 +11,11 @@
 # to save check operations in the future. Indexes on the other hand are mutable,
 # so we check these everytime. A more advanced implementation might have the zdb
 # hook script write the dirty index paths somewhere that this script would then
-# clear out after a double check. A zstor check operation can take ~0.5s with
-# mediocre latency to the metadata backends and possibly longer with bad
-# latency, competing traffic, etc. This is probably okay up to some hundreds of
-# index files but may become a problem eventually
+# clear out after a double check (actually on second look, zdb provides commands
+# to check dirty index files manually, so we could use that). A zstor check
+# operation can take ~0.5s with mediocre latency to the metadata backends and
+# possibly longer with bad latency, competing traffic, etc. This is probably
+# okay up to some hundreds of index files but may become a problem eventually
 #
 # The default behavior is to run in a loop with a ten minute sleep after each
 # pass. The sleep time can be passed as an optional argument, and a negative
@@ -52,24 +53,28 @@ check_and_upload_file() {
 
 while true; do
     # Process each type of file (data and index) for both zdbfs-data and zdbfs-meta
-    # Create temp dir for
+    # Create temp dir for index files
     tmpdir=$(mktemp -d)
     for namespace in "zdbfs-data" "zdbfs-meta"; do
+        mkdir $tmpdir/$namespace
         # Check and upload namespace file
         namespace_file="/data/index/$namespace/zdb-namespace"
         check_and_upload_file "$namespace_file"
 
         # Process data and index files
         for type in "data" "index"; do
-            # Prefix is the first letter of the type ("i" or "d")
-            prefix=${type:0:1}
-            max_index=$(ls /data/$type/$namespace/$prefix* 2>/dev/null | sed "s/.*$prefix//" | sort -n | tail -1)
-            for i in $(seq 0 $max_index); do
-                file="/data/$type/$namespace/$prefix$i"
+            # The index directory also has the namespace file, so we exclude
+            # that by only looking for files starting with d or i
+            path_base=/data/$type/$namespace/${type:0:1}
+
+            # We want to check every file except for the largest sequence
+            # number, so we sort and throw away the last row. Here an ls even
+            # without -1 helps sort to work, while echo does't. Not sure why
+            for file in $(ls -1 $path_base* | sort -V | head -n -1); do
                 # Since index files are mutable, we freeze them in a tmp folder
                 # to avoid any issues with concurrent reads/writes
                 if [ "$type" = "index" ]; then
-                    tmp_path="$tmpdir/$namespace/$(basename "$file")"
+                    tmp_path="$tmpdir/$namespace/$(basename $file)"
                     cp "$file" "$tmp_path"
                     check_and_upload_file "$tmp_path"
                 elif ! grep -q "$file" "$UPLOADED_DATA_FILES_PATH" 2>/dev/null; then
@@ -79,6 +84,15 @@ while true; do
         done
     done
     rm -rf "$tmpdir"
+
+    # If we have a Prometheus push gateway running, send metrics to it
+    if pgrep prometheus-push > /dev/null; then
+        timestamp=$(date +%s)
+        cat <<EOF | curl -s --data-binary @- localhost:9091/metrics/job/qsfs_retry_uploads
+# TYPE last_run_time gauge
+last_run_time $timestamp
+EOF
+    fi
 
     if ((sleep_time < 0)); then
         break
