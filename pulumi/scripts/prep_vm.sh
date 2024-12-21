@@ -19,6 +19,10 @@ if ! [ -f /usr/local/bin/zdb-hook.sh ]; then
     wget -O /usr/local/bin/zdb-hook.sh https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/zdb-hook.sh
 fi
 
+if ! [ -f /usr/local/bin/retry-uploads.sh ]; then
+    wget -O /usr/local/bin/retry-uploads.sh https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/retry-uploads.sh
+fi
+
 if ! [ -f /bin/zstor ]; then
     wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v0.4.0/zstor_v2-x86_64-linux-musl
 fi
@@ -31,5 +35,5 @@ if [ -f /etc/prometheus.yaml ]; then
     echo
     echo Installing Prometheus
     apt update
-    apt install -y prometheus
+    apt install -y prometheus prometheus-pushgateway curl
 fi
