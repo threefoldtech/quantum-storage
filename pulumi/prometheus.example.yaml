@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 60s
+  external_labels:
+    origin_prometheus: prometheus01
+remote_write:
+  - url: https://your-prometheus.url
+    basic_auth:
+      username: user
+      password: password
+scrape_configs:
+  - job_name: zstor
+    static_configs:
+      - targets: ["localhost:9200"]
+  - job_name: node-exporter-zstor
+    static_configs:
+      - targets: ["localhost:9100"]
+  - job_name: pushgateway-zstor
+    static_configs:
+      - targets: ["localhost:9091"]
+    honor_labels: true

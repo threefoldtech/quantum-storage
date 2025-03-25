@@ -1,0 +1,1 @@
+exec: prometheus-pushgateway --persistence.file=/var/lib/prometheus/pushgateway-persistence.data

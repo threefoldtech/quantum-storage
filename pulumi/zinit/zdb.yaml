@@ -1,0 +1,10 @@
+exec: |
+  /usr/local/bin/zdb \
+    --index /data/index \
+    --data /data/data \
+    --logfile /var/log/zdb.log \
+    --datasize 67108864 \
+    --hook /usr/local/bin/zdb-hook.sh \
+    --rotate 900
+shutdown_timeout: 60
+after: [zstor]
