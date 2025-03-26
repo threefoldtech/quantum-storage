@@ -1,4 +1,6 @@
-# Troubleshooting
+## Introduction
+
+Here's a collection of errors that might arise when using the Quantum Safe Storage system, along with some explanations and tips to resolve them.
 
 ## zstor status
 
@@ -21,7 +23,7 @@ ERROR error during storage: ZDB at [300:cc55:8958:c1ff:229e:63d2:6fda:878d]:9900
 Check that the zdb ip adress is reachable by performing a normal `ping` command.
 If it is, try a [redis-cli](https://redis.io/docs/ui/cli/) `PING` to check if the zdb is alive.
 
-## fuse device not found
+## Fuse device not found
 
 ```log
 fusermount3: fuse device not found, try 'modprobe fuse' first
@@ -29,7 +31,7 @@ fusermount3: fuse device not found, try 'modprobe fuse' first
 
 Make sure fuse3 is installed and the kernel module is loaded.
 
-## failed to process store command error during accessing local storage for attempting to store file which is not in the file tree rooted at
+## Failed to process store command error during accessing local storage for attempting to store file which is not in the file tree rooted at
 
 ```log
 ERROR failed to process store command error during accessing local storage for attempting to store file which is not in the file tree rooted at /mnt: invalid data, queueing a retry
@@ -37,7 +39,7 @@ ERROR failed to process store command error during accessing local storage for a
 
 The zstor config has an invalid `root` property set. Set it to where the local 0-db stores its data or drop it completely.
 
-## could not find any viable backend distribution to statisfy redundancy requirement
+## Could not find any viable backend distribution to statisfy redundancy requirement
 
 ```log
 2023-03-03 13:25:56 +00:00: DEBUG Finding backend config
