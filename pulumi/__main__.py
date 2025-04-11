@@ -33,15 +33,9 @@ ZSTOR_CONFIG_REMOTE = "/etc/zstor-default.toml"
 if not os.path.exists(ZSTOR_CONFIG_BASE):
     exit("zstor_config.base.toml not found. Exiting.")
 
-
 # Path of the script that will run on the deployed VM after deployment
 # Installs needed binaries and starts up all the services
 POST_DEPLOY_SCRIPT = "post_deploy.sh"
-
-# If a node has IPv6, then it will be the first IP in the zdb IP list
-# Mycelium will always be last, but this could be index 1 or 2
-ZDB_IP6_INDEX = 0
-ZDB_MYC_INDEX = -1
 
 # From here are all the parameters for the deployment
 MNEMONIC = MNEMONIC if MNEMONIC else os.environ.get("MNEMONIC")
@@ -67,11 +61,6 @@ META_SIZE = 1
 zstor_key = pulumi_random.RandomBytes("zstor_key", length=32)
 zdb_pw = pulumi_random.RandomPassword("zdb_pw", length=20)
 
-if ZDB_CONNECTION == "ipv6":
-    ZDB_IP_INDEX = ZDB_IP6_INDEX
-elif ZDB_CONNECTION == "mycelium":
-    ZDB_IP_INDEX = ZDB_MYC_INDEX
-
 # CopyToRemote requires that the path used contains some file from the start, so
 # we just put an empty one there if needed
 Path(ZSTOR_CONFIG_PATH).touch()
@@ -94,7 +83,7 @@ if VM_NODE is not None:
         # With mycelium enabled, we can't redeploy the vm
         # https://github.com/threefoldtech/pulumi-threefold/issues/552
         # Maybe it's okay though if we use separate deployements for vm and zdbs?
-        # mycelium=True,
+        mycelium=True,
         opts=pulumi.ResourceOptions(provider=provider),
     )
 
@@ -113,7 +102,7 @@ if VM_NODE is not None:
                 cpu=CPU,
                 memory=RAM,
                 rootfs_size=ROOTFS,
-                # mycelium=True,
+                mycelium=True,
                 planetary=True,
                 public_ip6=True,
                 env_vars={
@@ -160,6 +149,34 @@ for node in zdb_nodes:
         )
     )
 
+
+def map_ips(ips):
+    # Zdb deployment just gives us a list of IP addresses with varying length
+    # based on what connection types are available. Here we convert to a dict
+    # indexed by connection type name
+
+    mapped = {}
+    for ip in ips:
+        # Extract the subnet part to check
+        ip_parts = ip.split(':')
+        first_part = ip_parts[0]
+        try:
+            # Convert the first part to a hex number for range checking
+            hex_value = int(first_part, 16)
+            # Check if it falls into specific ranges
+            if 0x2000 <= hex_value <= 0x3FFF:
+                mapped['ipv6'] = ip
+            elif 0x200 <= hex_value <= 0x3FF:
+                mapped['ygg'] = ip
+            elif 0x400 <= hex_value <= 0x5FF:
+                mapped['mycelium'] = ip
+            else:
+                print(f"IP {ip} with hex {hex_value:x} didn't match any known range")
+        except ValueError:
+            # Skip if the part is not a valid hex number
+            continue
+
+    return mapped
 
 def make_ssh_connection(vm):
     if SSH_CONNECTION == "mycelium":
@@ -208,7 +225,7 @@ def make_zstor_config(args):
         """
         file.write(textwrap.dedent(encryption_config))
         for zdb in meta_zdbs:
-            ip = zdb["ips"][ZDB_IP_INDEX]
+            ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
             ns = zdb["namespace"]
             file.write("[[meta.config.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
@@ -217,7 +234,7 @@ def make_zstor_config(args):
 
         file.write("[[groups]]\n")
         for zdb in data_zdbs:
-            ip = zdb["ips"][ZDB_IP_INDEX]
+            ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
             ns = zdb["namespace"]
             file.write("[[groups.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
