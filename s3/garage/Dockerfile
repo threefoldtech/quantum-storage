@@ -3,7 +3,7 @@ FROM alpine:latest
 # Set the base path. If `/mnt`, then Zdbfs storage will be used
 ENV BASE_PATH=/mnt
 
-RUN apk add --no-cache wget openssl neovim
+RUN apk add --no-cache wget openssl
 
 # Install 0-db and zdbfs
 RUN wget https://github.com/threefoldtech/0-db/releases/download/v2.0.8/zdb-2.0.8-linux-amd64-static && \
