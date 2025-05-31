@@ -1,6 +1,6 @@
 # Quantum Storage Filesystem
 
-Quantum Storage is a FUSE filesystem that uses mechanisms of forward error correction (Reed Solomon codes) to make sure data (files and metadata) are stored in multiple remote places in a way that we can afford losing `x` number of locations without losing the data. There is other factors that are involved into this operation like encryption. Please check [0-stor](https://github.com/threefoldtech/0-stor_v2) documentations for details.
+Quantum Storage is a FUSE filesystem that uses mechanisms of forward looking error correcting codes to make sure data (files and metadata) are stored in multiple remote places in a way that we can afford losing `x` number of locations without losing the data. There is other factors that are involved into this operation like encryption. Please check [0-stor](https://github.com/threefoldtech/0-stor_v2) documentations for details.
 
 The aim is to support unlimited local storage with remote backends for offload and backup which cannot be broken, even by a quantum computer.
 
@@ -12,7 +12,7 @@ To have a working qsfs filesystem there are multiple components that need to wor
 - [0-db](https://github.com/threefoldtech/0-db) is a local `cache` db. this is what is used by the `0-db-fs` to store the actual data of the filesystem. This means that any read/write operations triggered by the `0-db-fs` directly access this (single) instance of `0-db` for the data blocks
 - [0-stor](https://github.com/threefoldtech/0-stor_v2) zero stor is listening to `0-db` events (with a hooks system) to upload and/or download zdb data files segments to remote locations. that's where the encryption and forward error correction happens.
 
-Since zdb is an `append-only` database, the local db will just keep growing linearly with each write (and delete) operation. ZDB will then create db segment files that are granted to **not** change in the future. What happens once a segment file is closed (it hit it's max file size) a hook is triggered which in return will trigger `0-stor` to chunk and upload this file to the remote locations (zdbs).
+Since zdb is an `append-only` database, the local db will just keep growing linearly with each write (and delete) operation. ZDB will then create db segment files that are guaranteed to **not** change in the future. What happens once a segment file is closed (it hit it's max file size) a hook is triggered which in return will trigger `0-stor` to chunk and upload this file to the remote locations (zdbs).
 
 The segment file will then be deleted (at some point) in the future when the number of segment files reaches a certain number, older files will get deleted.
 
@@ -20,15 +20,13 @@ If the filesystem then is trying to access a piece of old data, it will make a r
 
 Once the zdb segment file is restored, the read operation continues.
 
-## Bootstrap
+## How to deploy
 
-You can use the bootstrap (`bootstrap/bootstrap.v`) to download therequired components and start everything. The default configuration uses everything localy. You can pass a specific zstor configuration file to use a real backend.
+It's possible to run an entirely local instance for testing. The archive portion of this repo contains some resources for creating such a local deployment, but these have not been updated for some time.
 
-Everything will be installed in `~/.threefold` and nowhere else.
-This bootstrap will spawn two `zdb`'s', one `zstor daemon` and the `zdbfs` fuse system.
+Creating deployments with remote backends is the main purpose of this system. That's easiest to do on the ThreeFold Grid, where HDD based zdb capacity can be rented as a primitive. There are two main deployment methods for the Grid documented on this repo:
 
-## Other documentation
+* [Tfcmd](https://github.com/threefoldtech/quantum-storage/blob/master/docs/04_deploy_tfcmd.md) (more manual)
+* [Pulumi](https://github.com/threefoldtech/quantum-storage/blob/master/docs/04_deploy_tfcmd.md) (more automated)
 
-- [Set up qsfs manually](docs/manual_setup.md).
-- [Docker image documentation](docker/README.md).
-- [Operations guide](docs/operations.md)
+The docs also contain more information about how the system works and how to plan a deployment, starting with an [overview](https://github.com/threefoldtech/quantum-storage/blob/master/docs/01_overview.md).
