@@ -22,7 +22,7 @@ Once the zdb segment file is restored, the read operation continues.
 
 ## How to deploy
 
-It's possible to run an entirely local instance for testing. The archive portion of this repo contains some resources for creating such a local deployment, but these have not been updated for some time.
+It's possible to run an entirely local instance for testing. See details below on how to do this with Docker.
 
 Creating deployments with remote backends is the main purpose of this system. That's easiest to do on the ThreeFold Grid, where HDD based zdb capacity can be rented as a primitive. There are two main deployment methods for the Grid documented on this repo:
 
@@ -30,3 +30,7 @@ Creating deployments with remote backends is the main purpose of this system. Th
 * [Pulumi](https://github.com/threefoldtech/quantum-storage/blob/master/docs/04_deploy_tfcmd.md) (more automated)
 
 The docs also contain more information about how the system works and how to plan a deployment, starting with an [overview](https://github.com/threefoldtech/quantum-storage/blob/master/docs/01_overview.md).
+
+## Local deployment using Docker
+
+There's also a Dockerfile under `docker` that spins up a mock full QSFS deployment locally in a single container. It's meant for testing and could also be useful for studying the system. This is the most compact example to see the end to end process of fitting all the components together.
