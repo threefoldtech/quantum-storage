@@ -159,64 +159,65 @@ verify_data_integrity() {
 
 # Simulate component failures
 kill_zstor() {
-    log "Killing zstor process..."
-    docker exec "${CONTAINER_NAME}" pkill -f zstor || true
+    log "Stopping zstor service..."
+    docker exec "${CONTAINER_NAME}" zinit kill zstor
 }
 
 kill_zdb_backend() {
     local port="$1"
-    log "Killing ZDB backend on port ${port}..."
-    docker exec "${CONTAINER_NAME}" pkill -f "zdb.*--port ${port}" || true
+    local service_name
+    case "$port" in
+        9901) service_name="zdb-back1" ;;
+        9902) service_name="zdb-back2" ;;
+        9903) service_name="zdb-back3" ;;
+        9904) service_name="zdb-back4" ;;
+        *) error "Unknown port $port"; return 1 ;;
+    esac
+    log "Stopping backend ZDB service: ${service_name}..."
+    docker exec "${CONTAINER_NAME}" zinit kill "$service_name"
 }
 
 kill_zdbfs() {
-    log "Killing zdbfs process..."
-    docker exec "${CONTAINER_NAME}" pkill -f zdbfs || true
+    log "Stopping zdbfs service..."
+    docker exec "${CONTAINER_NAME}" zinit kill zdbfs
 }
 
 kill_frontend_zdb() {
-    log "Killing frontend ZDB..."
-    docker exec "${CONTAINER_NAME}" pkill -f "zdb.*--index /data/index" || true
+    log "Stopping frontend ZDB service..."
+    docker exec "${CONTAINER_NAME}" zinit kill zdb-front
 }
 
 # Restore components
 restore_zstor() {
-    log "Restoring zstor..."
-    docker exec "${CONTAINER_NAME}" zstor -c /etc/zstor-default.toml --log_file /var/log/zstor.log monitor &
+    log "Restarting zstor service..."
+    docker exec "${CONTAINER_NAME}" zinit start zstor
     sleep 3
 }
 
 restore_zdb_backend() {
     local port="$1"
-    local data_num="${port: -1}"  # Extract last digit
-    log "Restoring ZDB backend on port ${port}..."
-    docker exec "${CONTAINER_NAME}" zdb --port "$port" --data "/data/data${data_num}" --index "/data/index${data_num}" --background --logfile "/var/log/zdb${data_num}.log"
+    local service_name
+    case "$port" in
+        9901) service_name="zdb-back1" ;;
+        9902) service_name="zdb-back2" ;;
+        9903) service_name="zdb-back3" ;;
+        9904) service_name="zdb-back4" ;;
+        *) error "Unknown port $port"; return 1 ;;
+    esac
+    log "Restarting ZDB backend service: ${service_name}..."
+    docker exec "${CONTAINER_NAME}" zinit start "$service_name"
     sleep 2
-
-    # Recreate namespaces
-    docker exec "${CONTAINER_NAME}" redis-cli -p "$port" NSNEW "data${data_num}" || true
-    docker exec "${CONTAINER_NAME}" redis-cli -p "$port" NSSET "data${data_num}" password zdbpassword || true
-    docker exec "${CONTAINER_NAME}" redis-cli -p "$port" NSSET "data${data_num}" mode seq || true
-    docker exec "${CONTAINER_NAME}" redis-cli -p "$port" NSNEW "meta${data_num}" || true
-    docker exec "${CONTAINER_NAME}" redis-cli -p "$port" NSSET "meta${data_num}" password zdbpassword || true
 }
 
 restore_zdbfs() {
-    log "Restoring zdbfs..."
-    docker exec "${CONTAINER_NAME}" zdbfs -o autons -o background /mnt &
+    log "Restarting zdbfs service..."
+    docker exec "${CONTAINER_NAME}" zinit start zdbfs
     sleep 3
 }
 
 restore_frontend_zdb() {
-    log "Restoring frontend ZDB..."
-    docker exec "${CONTAINER_NAME}" zdb \
-        --index /data/index \
-        --data /data/data \
-        --logfile /var/log/zdb.log \
-        --datasize 67108864 \
-        --hook /usr/local/bin/zdb-hook.sh \
-        --rotate 1 \
-        --background &
+    log "Restarting frontend ZDB service..."
+    docker exec "${CONTAINER_NAME}" zinit start zdb-front
     sleep 3
 }
 
