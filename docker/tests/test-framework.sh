@@ -86,14 +86,12 @@ start_container() {
     local attempt=0
 
     while [ $attempt -lt $max_attempts ]; do
-        if docker exec "${CONTAINER_NAME}" test -d "${MOUNT_POINT}" 2>/dev/null; then
-            if docker exec "${CONTAINER_NAME}" ls "${MOUNT_POINT}" >/dev/null 2>&1; then
-                log "Quantum storage system is ready!"
-                return 0
-            fi
+        if docker exec "${CONTAINER_NAME}" df | grep -q zdbfs; then
+            log "Quantum storage system is ready!"
+            return 0
         fi
-        sleep 2
-        ((attempt++))
+        sleep 1
+        attempt=$((attempt + 1))
     done
 
     error "Quantum storage system failed to initialize within ${max_attempts} attempts"
@@ -124,7 +122,7 @@ verify_data_integrity() {
             local expected_hash=$(cat "$checksum_file" | cut -d' ' -f1)
 
             # Get file from container and calculate hash
-            docker cp "${CONTAINER_NAME}:${MOUNT_POINT}/${basename}" "${TEST_DATA_DIR}/retrieved_${basename}" 2>/dev/null || {
+            echo docker cp "${CONTAINER_NAME}:${MOUNT_POINT}/${basename}" "${TEST_DATA_DIR}/retrieved_${basename}" 2>/dev/null || {
                 error "Failed to retrieve file: ${basename}"
                 integrity_ok=false
                 continue
@@ -132,6 +130,8 @@ verify_data_integrity() {
 
             local actual_hash=$(sha256sum "${TEST_DATA_DIR}/retrieved_${basename}" | cut -d' ' -f1)
 
+            echo "Expected hash: $expected_hash"
+            echo "Actual hash:   $actual_hash"
             if [ "$expected_hash" = "$actual_hash" ]; then
                 log "✓ File ${basename} integrity verified"
             else
@@ -147,11 +147,11 @@ verify_data_integrity() {
 
     if [ "$integrity_ok" = true ]; then
         log "✓ All files passed integrity check for test: ${test_name}"
-        ((TESTS_PASSED++))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
         return 0
     else
         error "✗ Data integrity test FAILED for: ${test_name}"
-        ((TESTS_FAILED++))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
 }
@@ -173,17 +173,17 @@ kill_zdb_backend() {
         *) error "Unknown port $port"; return 1 ;;
     esac
     log "Stopping backend ZDB service: ${service_name}..."
-    docker exec "${CONTAINER_NAME}" zinit kill "$service_name"
+    docker exec "${CONTAINER_NAME}" zinit kill "$service_name" SIGKILL && zinit stop "$service_name"
 }
 
 kill_zdbfs() {
     log "Stopping zdbfs service..."
-    docker exec "${CONTAINER_NAME}" zinit kill zdbfs
+    docker exec "${CONTAINER_NAME}" zinit kill zdbfs SIGKILL && zinit stop zdbfs
 }
 
 kill_frontend_zdb() {
     log "Stopping frontend ZDB service..."
-    docker exec "${CONTAINER_NAME}" zinit kill zdb-front
+    docker exec "${CONTAINER_NAME}" zinit kill zdb-front SIGKILL && zinit stop zdb-front
 }
 
 # Restore components
@@ -218,6 +218,32 @@ restore_frontend_zdb() {
     log "Restarting frontend ZDB service..."
     docker exec "${CONTAINER_NAME}" zinit start zdb-front
     sleep 3
+}
+
+# Baseline test to demonstrate that everything is working
+
+test_baseline() {
+    log "=== TEST: Baseline test ==="
+
+    generate_test_data 100 3 "baseline_test"
+
+    start_container
+    copy_test_data
+
+    # Give some time for the frontend zdb to rotate and for zstor to work
+    sleep 2
+
+    # Delete all frontend data so that data must be restored from backends
+    log "Deleting frontend data..."
+    docker exec "${CONTAINER_NAME}" bash -c "rm /data/data/zdbfs-data/*"
+    docker exec "${CONTAINER_NAME}" bash -c "rm /data/index/zdbfs-data/*"
+    docker exec "${CONTAINER_NAME}" bash -c "rm /data/data/zdbfs-meta/*"
+    docker exec "${CONTAINER_NAME}" bash -c "rm /data/index/zdbfs-meta/*"
+
+    verify_data_integrity "baseline_test"
+
+    log "Final frontend storage layout"
+    docker exec "${CONTAINER_NAME}" tree -h /data/data
 }
 
 # Test scenario: Kill zstor during data upload
@@ -355,6 +381,10 @@ trap cleanup EXIT
 
 # Main execution
 case "${1:-all}" in
+    "baseline")
+        setup
+        test_baseline
+        ;;
     "zstor")
         setup
         test_zstor_failure_during_upload
