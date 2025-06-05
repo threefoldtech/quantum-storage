@@ -13,7 +13,7 @@ RUN apt-get update && \
 # Version parameters
 ENV ZDBFS_VERSION="0.1.11"
 ENV ZDB_VERSION="2.0.8"
-ENV ZSTOR_VERSION="0.4.0"
+ENV ZSTOR_VERSION="0.5.0-rc.1"
 
 # Download and install binaries
 RUN wget -O /usr/local/bin/zdbfs https://github.com/threefoldtech/0-db-fs/releases/download/v${ZDBFS_VERSION}/zdbfs-${ZDBFS_VERSION}-amd64-linux-static && \
