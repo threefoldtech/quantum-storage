@@ -78,7 +78,6 @@ start_container() {
         --cap-add SYS_ADMIN \
         --device /dev/fuse \
         --name "${CONTAINER_NAME}" \
-        --tmpfs /data:exec,size=1G \
         "${IMAGE_NAME}"
 
     # Wait for system to be ready
