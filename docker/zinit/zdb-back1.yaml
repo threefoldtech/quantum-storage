@@ -1,0 +1,6 @@
+exec: |
+  /usr/local/bin/zdb
+    --port 9901
+    --data /data/data1
+    --index /data/index1
+    --logfile /var/log/zdb1.log
