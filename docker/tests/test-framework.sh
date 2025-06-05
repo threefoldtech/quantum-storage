@@ -8,7 +8,6 @@ set -euo pipefail
 # Configuration
 CONTAINER_NAME="qsfs-test"
 IMAGE_NAME="qsfs"
-TEST_DATA_DIR="/tmp/qsfs-test-data"
 MOUNT_POINT="/mnt"
 LOG_DIR="/tmp/qsfs-test-logs"
 
@@ -39,13 +38,13 @@ cleanup() {
     log "Cleaning up test environment..."
     docker stop "${CONTAINER_NAME}" 2>/dev/null || true
     docker rm "${CONTAINER_NAME}" 2>/dev/null || true
-    rm -rf "${TEST_DATA_DIR}" "${LOG_DIR}"
+    rm -rf "${LOG_DIR}"
 }
 
 # Setup test environment
 setup() {
     log "Setting up test environment..."
-    mkdir -p "${TEST_DATA_DIR}" "${LOG_DIR}"
+    mkdir -p "${LOG_DIR}"
 
     # Build the image if it doesn't exist
     if ! docker image inspect "${IMAGE_NAME}" >/dev/null 2>&1; then
@@ -56,18 +55,26 @@ setup() {
     fi
 }
 
-# Generate test data with checksums
+# Generate test data with checksums inside container
 generate_test_data() {
     local size_mb=$1
     local file_count=${2:-1}
     local prefix="${3:-testfile}"
 
-    log "Generating ${file_count} test files of ${size_mb}MB each..."
-
+    log "Generating ${file_count} test files of ${size_mb}MB each INSIDE CONTAINER..."
+    
+    # Prepare checksum directory in container
+    docker exec "${CONTAINER_NAME}" mkdir -p /tmp/checksums
+    
     for i in $(seq 1 "$file_count"); do
-        local filename="${TEST_DATA_DIR}/${prefix}_${i}.dat"
-        dd if=/dev/urandom of="$filename" bs=1M count="$size_mb" 2>/dev/null
-        sha256sum "$filename" > "${filename}.sha256"
+        local filename="${MOUNT_POINT}/${prefix}_${i}.dat"
+        local checksum_file="/tmp/checksums/${prefix}_${i}.sha256"
+        
+        # Generate file directly in container
+        docker exec "${CONTAINER_NAME}" dd if=/dev/urandom of="$filename" bs=1M count="$size_mb" 2>/dev/null
+        
+        # Compute and store checksum
+        docker exec "${CONTAINER_NAME}" sha256sum "$filename" | cut -d' ' -f1 > "$checksum_file"
     done
 }
 
@@ -98,53 +105,42 @@ start_container() {
     return 1
 }
 
-# Copy test data to quantum storage
-copy_test_data() {
-    log "Copying test data to quantum storage..."
-    for file in "${TEST_DATA_DIR}"/*.dat; do
-        if [ -f "$file" ]; then
-            local basename=$(basename "$file")
-            docker cp "$file" "${CONTAINER_NAME}:${MOUNT_POINT}/${basename}"
-        fi
-    done
-}
-
-# Verify data integrity
+# Verify data integrity inside container
 verify_data_integrity() {
     local test_name="$1"
-    log "Verifying data integrity for test: ${test_name}..."
-
+    log "Verifying data integrity INSIDE CONTAINER for: ${test_name}..."
+    
     local integrity_ok=true
-
-    for checksum_file in "${TEST_DATA_DIR}"/*.sha256; do
-        if [ -f "$checksum_file" ]; then
-            local basename=$(basename "$checksum_file" .sha256)
-            local expected_hash=$(cat "$checksum_file" | cut -d' ' -f1)
-
-            # Get file from container and calculate hash
-            echo docker cp "${CONTAINER_NAME}:${MOUNT_POINT}/${basename}" "${TEST_DATA_DIR}/retrieved_${basename}" 2>/dev/null || {
-                error "Failed to retrieve file: ${basename}"
-                integrity_ok=false
-                continue
-            }
-
-            local actual_hash=$(sha256sum "${TEST_DATA_DIR}/retrieved_${basename}" | cut -d' ' -f1)
-
-            echo "Expected hash: $expected_hash"
-            echo "Actual hash:   $actual_hash"
-            if [ "$expected_hash" = "$actual_hash" ]; then
-                log "✓ File ${basename} integrity verified"
-            else
-                error "✗ File ${basename} integrity check FAILED!"
-                error "  Expected: $expected_hash"
-                error "  Actual:   $actual_hash"
-                integrity_ok=false
-            fi
-
-            rm -f "${TEST_DATA_DIR}/retrieved_${basename}"
+    
+    # Get list of checksum files
+    local checksum_files
+    checksum_files=$(docker exec "${CONTAINER_NAME}" find /tmp/checksums -type f -name "*.sha256")
+    
+    # Process each checksum file
+    while IFS= read -r cf; do
+        # Extract base filename without extension
+        local base_in_container
+        base_in_container=$(basename "$cf" .sha256)
+        local data_file="${MOUNT_POINT}/${base_in_container}"
+        
+        # Get expected hash from stored checksum
+        local expected_hash
+        expected_hash=$(docker exec "${CONTAINER_NAME}" cat "$cf")
+        
+        # Compute actual hash of data file in container
+        local actual_hash
+        actual_hash=$(docker exec "${CONTAINER_NAME}" sha256sum "$data_file" | cut -d' ' -f1)
+        
+        if [ "$expected_hash" = "$actual_hash" ]; then
+            log "✓ File ${base_in_container} integrity verified"
+        else
+            error "✗ File ${base_in_container} integrity check FAILED!"
+            error "  Expected: $expected_hash"
+            error "  Actual:   $actual_hash"
+            integrity_ok=false
         fi
-    done
-
+    done <<< "$checksum_files"
+    
     if [ "$integrity_ok" = true ]; then
         log "✓ All files passed integrity check for test: ${test_name}"
         TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -225,10 +221,8 @@ restore_frontend_zdb() {
 test_baseline() {
     log "=== TEST: Baseline test ==="
 
-    generate_test_data 100 3 "baseline_test"
-
     start_container
-    copy_test_data
+    generate_test_data 100 3 "baseline_test"
 
     # Give some time for the frontend zdb to rotate and for zstor to work
     sleep 2
@@ -250,13 +244,13 @@ test_baseline() {
 test_zstor_failure_during_upload() {
     log "=== TEST: zstor failure during data upload ==="
 
-    generate_test_data 100 3 "zstor_test"
     start_container
+    generate_test_data 100 3 "zstor_test"
 
-    # Start copying data in background
+    # Start data generation in background
     (
         sleep 2
-        copy_test_data
+        generate_test_data 100 3 "zstor_test_bg"
     ) &
     local copy_pid=$!
 
@@ -281,9 +275,8 @@ test_zstor_failure_during_upload() {
 test_backend_zdb_failure() {
     log "=== TEST: Backend ZDB failure ==="
 
-    generate_test_data 5 2 "backend_test"
     start_container
-    copy_test_data
+    generate_test_data 5 2 "backend_test"
 
     # Kill one backend ZDB
     kill_zdb_backend 9901
@@ -304,9 +297,8 @@ test_backend_zdb_failure() {
 test_zdbfs_failure() {
     log "=== TEST: zdbfs failure ==="
 
-    generate_test_data 8 2 "zdbfs_test"
     start_container
-    copy_test_data
+    generate_test_data 8 2 "zdbfs_test"
 
     # Kill zdbfs
     kill_zdbfs
@@ -326,9 +318,8 @@ test_zdbfs_failure() {
 test_multiple_failures() {
     log "=== TEST: Multiple component failures ==="
 
-    generate_test_data 15 4 "multi_test"
     start_container
-    copy_test_data
+    generate_test_data 15 4 "multi_test"
 
     # Sequential failures
     kill_zstor
