@@ -70,11 +70,8 @@ generate_test_data() {
         local filename="${MOUNT_POINT}/${prefix}_${i}.dat"
         local checksum_file="/tmp/checksums/${prefix}_${i}.sha256"
         
-        # Generate file directly in container
-        docker exec "${CONTAINER_NAME}" dd if=/dev/urandom of="$filename" bs=1M count="$size_mb" 2>/dev/null
-        
-        # Compute and store checksum
-        docker exec "${CONTAINER_NAME}" sha256sum "$filename" | cut -d' ' -f1 > "$checksum_file"
+        # Generate file and compute checksum inside container
+        docker exec "${CONTAINER_NAME}" bash -c "dd if=/dev/urandom of=\"$filename\" bs=1M count=$size_mb 2>/dev/null && sha256sum \"$filename\" | cut -d' ' -f1 > \"$checksum_file\""
     done
 }
 
