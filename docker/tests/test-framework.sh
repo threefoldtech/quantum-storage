@@ -215,7 +215,7 @@ restore_frontend_zdb() {
         --logfile /var/log/zdb.log \
         --datasize 67108864 \
         --hook /usr/local/bin/zdb-hook.sh \
-        --rotate 900 \
+        --rotate 1 \
         --background &
     sleep 3
 }
