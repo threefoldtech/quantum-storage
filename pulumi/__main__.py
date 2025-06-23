@@ -41,6 +41,10 @@ POST_DEPLOY_SCRIPT = "post_deploy.sh"
 MNEMONIC = MNEMONIC if MNEMONIC else os.environ.get("MNEMONIC")
 NETWORK = NETWORK if NETWORK else os.environ.get("NETWORK")
 
+# We have to set the relay manually because multiple relays are no longer
+# supported. Ideally this won't be necessary at some point
+RELAY_URL = ["wss://relay.grid.tf"]
+
 ssh_key_path = os.path.expanduser(SSH_KEY_PATH)
 
 with open(ssh_key_path, "r") as file:
@@ -69,6 +73,7 @@ provider = threefold.Provider(
     "provider",
     mnemonic=MNEMONIC,
     network=NETWORK,
+    relay_url=RELAY_URL,
 )
 
 # Deploying a VM is optional. Some users might want to use an existing VM or
@@ -225,7 +230,10 @@ def make_zstor_config(args):
         """
         file.write(textwrap.dedent(encryption_config))
         for zdb in meta_zdbs:
-            ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
+            try:
+                ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
+            except KeyError:
+                raise KeyError(f"ZDB connection type '{ZDB_CONNECTION}' not supported on node {zdb['namespace'].split('meta')[1]}")
             ns = zdb["namespace"]
             file.write("[[meta.config.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
@@ -234,7 +242,10 @@ def make_zstor_config(args):
 
         file.write("[[groups]]\n")
         for zdb in data_zdbs:
-            ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
+            try:
+                ip = map_ips(zdb["ips"])[ZDB_CONNECTION]
+            except KeyError:
+                raise KeyError(f"ZDB connection type '{ZDB_CONNECTION}' not supported on node {zdb['namespace'].split('data')[1]}")
             ns = zdb["namespace"]
             file.write("[[groups.backends]]\n")
             file.write(f'address = "[{ip}]:9900"\n')
