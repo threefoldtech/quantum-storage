@@ -2,12 +2,16 @@ FROM ubuntu:22.04
 
 # Install dependencies, we just need the redis-cli tool from redis
 # tree is helpful to visual how the system is working
+# Libraries are there for debug version of zdbfs, if needed
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
     redis \
     tree \
+    libunwind8 \
+    libfuse3-3 \
+    libhiredis0.14 \
     && rm -rf /var/lib/apt/lists/*
 
 # Version parameters
@@ -22,6 +26,11 @@ RUN wget -O /usr/local/bin/zdbfs https://github.com/threefoldtech/0-db-fs/releas
     wget -O /usr/local/bin/zdb-hook.sh https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/zdb-hook.sh && \
     wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v${ZSTOR_VERSION}/zstor_v2-x86_64-linux-musl  && \
     wget -O /sbin/zinit https://github.com/threefoldtech/zinit/releases/download/v${ZINIT_VERSION}/zinit-linux-x86_64
+
+# This allows for dropping our own zdbfs binary in next to the Dockerfile
+# If present, it will be copied and overwrite the downloaded one. The wildcard
+# stops the build from failing if the file is not present.
+COPY zdbfs* /usr/local/bin/zdbfs
 
 # Set executable permissions
 RUN chmod +x /usr/local/bin/* /bin/zstor /sbin/zinit
