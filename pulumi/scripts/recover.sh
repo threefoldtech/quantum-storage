@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 # This script is for recovering an existing QSFS onto a new VM
 
 create_mount_point() {
@@ -46,7 +48,7 @@ recover_metadata() {
 
     echo
     echo "Retrieving latest metadata data file..."
-    last_meta_index=$(ls /data/index/zdbfs-meta | tr -d i | sort -n | tail -n 1)
+    last_meta_index=$(ls /data/index/zdbfs-meta | grep -v zdb-namespace | tr -d i | sort -n | tail -n 1)
     zstor -c /etc/zstor-default.toml retrieve --file /data/data/zdbfs-meta/d$last_meta_index
 }
 
@@ -65,7 +67,7 @@ recover_data() {
 
     echo
     echo "Retrieving latest data data file..."
-    last_data_index=$(ls /data/index/zdbfs-data | tr -d i | sort -n | tail -n 1)
+    last_data_index=$(ls /data/index/zdbfs-data | grep -v zdb-namespace | tr -d i | sort -n | tail -n 1)
     zstor -c /etc/zstor-default.toml retrieve --file /data/data/zdbfs-data/d$last_data_index
 }
 
