@@ -3,11 +3,11 @@ expected_shards = 4
 redundant_groups = 0
 redundant_nodes = 0
 root = "/"
-zdbfs_mountpoint = "/mnt/qsfs"
+zdbfs_mountpoint = "/mnt/"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
 zdb_data_dir_path = "/data/data/zdbfs-data/"
-max_zdb_data_dir_size = 2560
+max_zdb_data_dir_size = 64
 
 [compression]
 algorithm = "snappy"
