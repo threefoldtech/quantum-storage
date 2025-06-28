@@ -16,11 +16,11 @@ Just run the script and pass the name of a test:
 
 ```
 cd docker/tests
-test-framework.sh baseline
+tests.sh baseline
 ```
 
 Or run all the tests serially:
 
 ```
-test-framework.sh all
+tests.sh all
 ```
