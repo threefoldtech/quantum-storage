@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 # This script is for recovering an existing QSFS onto a new VM
 
 create_mount_point() {

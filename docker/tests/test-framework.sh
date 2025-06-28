@@ -341,8 +341,6 @@ test_zstor_failure_during_upload() {
 
     sleep 5
     verify_data_integrity "zstor_failure_during_upload"
-
-    cleanup
 }
 
 # Test scenario: Kill backend ZDB during operation
@@ -363,8 +361,6 @@ test_backend_zdb_failure() {
 
     sleep 3
     verify_data_integrity "backend_zdb_failure"
-
-    cleanup
 }
 
 # Test scenario: Kill zdbfs during operation
@@ -384,8 +380,6 @@ test_zdbfs_failure() {
 
     sleep 3
     verify_data_integrity "zdbfs_failure"
-
-    cleanup
 }
 
 # Test scenario: Multiple component failures
@@ -413,8 +407,6 @@ test_multiple_failures() {
 
     sleep 5
     verify_data_integrity "multiple_failures"
-
-    cleanup
 }
 
 # Run all tests
@@ -423,10 +415,23 @@ run_all_tests() {
 
     setup
 
+    test_baseline
+    cleanup
+
+    test_recover_frontend
+    cleanup
+
     test_zstor_failure_during_upload
+    cleanup
+
     test_backend_zdb_failure
+    cleanup
+
     test_zdbfs_failure
+    cleanup
+
     test_multiple_failures
+    cleanup
 
     log "=== TEST SUMMARY ==="
     log "Tests passed: ${TESTS_PASSED}"
@@ -449,26 +454,32 @@ case "${1:-all}" in
     "baseline")
         setup
         test_baseline
+        cleanup
         ;;
     "recover_frontend")
         setup
         test_recover_frontend
+        cleanup
         ;;
     "zstor")
         setup
         test_zstor_failure_during_upload
+        cleanup
         ;;
     "backend")
         setup
         test_backend_zdb_failure
+        cleanup
         ;;
     "zdbfs")
         setup
         test_zdbfs_failure
+        cleanup
         ;;
     "multi")
         setup
         test_multiple_failures
+        cleanup
         ;;
     "all"|*)
         run_all_tests
