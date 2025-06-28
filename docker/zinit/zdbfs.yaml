@@ -1,0 +1,2 @@
+exec: /usr/local/bin/zdbfs /mnt -o autons
+after: [zdb-front, zstor]

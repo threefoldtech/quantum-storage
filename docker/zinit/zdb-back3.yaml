@@ -1,0 +1,6 @@
+exec: |
+  /usr/local/bin/zdb
+    --port 9903
+    --data /data/data3
+    --index /data/index3
+    --logfile /var/log/zdb3.log

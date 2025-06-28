@@ -24,7 +24,7 @@ if ! [ -f /usr/local/bin/retry-uploads.sh ]; then
 fi
 
 if ! [ -f /bin/zstor ]; then
-    wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v0.4.0/zstor_v2-x86_64-linux-musl
+    wget -O /bin/zstor https://github.com/threefoldtech/0-stor_v2/releases/download/v0.5.0-rc.1/zstor_v2-x86_64-linux-musl
 fi
 
 echo
