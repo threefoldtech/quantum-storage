@@ -66,11 +66,17 @@ func detectInitSystem() (string, error) {
 	return "", fmt.Errorf("no supported init system found")
 }
 
+const (
+	zdbfsVersion = "0.1.11"
+	zdbVersion   = "2.0.8"
+	zstorVersion = "0.4.0"
+)
+
 func downloadBinaries() error {
 	binaries := map[string]string{
-		"zdbfs": "https://github.com/threefoldtech/0-db-fs/releases/download/v0.1.11/zdbfs-0.1.11-amd64-linux-static",
-		"zdb":   "https://github.com/threefoldtech/0-db/releases/download/v2.0.8/zdb-2.0.8-linux-amd64-static",
-		"zstor": "https://github.com/threefoldtech/0-stor_v2/releases/download/v0.4.0/zstor_v2-x86_64-linux-musl",
+		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
+		"zdb":   fmt.Sprintf("https://github.com/threefoldtech/0-db/releases/download/v%s/zdb-%s-linux-amd64-static", zdbVersion, zdbVersion),
+		"zstor": fmt.Sprintf("https://github.com/threefoldtech/0-stor_v2/releases/download/v%s/zstor_v2-x86_64-linux-musl", zstorVersion),
 	}
 
 	for name, url := range binaries {
