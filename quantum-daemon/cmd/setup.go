@@ -176,7 +176,7 @@ func setupZinitServices() error {
 	}
 
 	// Start monitoring services
-	for name := range services {
+	for _, name := range services {
 		cmd := exec.Command("zinit", "monitor", name)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to monitor service %s: %w", name, err)
