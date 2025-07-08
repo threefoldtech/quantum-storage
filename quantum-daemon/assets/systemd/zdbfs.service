@@ -1,0 +1,12 @@
+[Unit]
+Wants=network.target zdb.service
+After=network.target zdb.service
+
+[Service]
+ExecStart=/usr/local/bin/zdbfs /mnt/qsfs -o autons
+Restart=always
+RestartSec=5
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

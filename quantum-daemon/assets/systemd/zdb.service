@@ -1,0 +1,21 @@
+[Unit]
+Wants=network.target zstor.service
+After=network.target zstor.service
+
+[Service]
+ProtectHome=true
+ProtectSystem=true
+ReadWritePaths=/data /var/log
+ExecStart=/usr/local/bin/zdb \
+    --index /data/index \
+    --data /data/data \
+    --logfile /var/log/zdb.log \
+    --datasize 67108864 \
+    --hook /usr/local/bin/zdb-hook.sh \
+    --rotate 900
+Restart=always
+RestartSec=5
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+//go:embed assets/systemd/* assets/zinit/*
+var serviceFiles embed.FS
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
@@ -124,67 +127,17 @@ func createDirectories() error {
 }
 
 func setupSystemdServices() error {
-	services := map[string]string{
-		"zstor": `[Unit]
-Wants=network.target
-After=network.target
-StartLimitIntervalSec=0
+	services := []string{"zstor", "zdb", "zdbfs"}
+	
+	for _, name := range services {
+		content, err := serviceFiles.ReadFile("assets/systemd/" + name + ".service")
+		if err != nil {
+			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
+		}
 
-[Service]
-ProtectHome=true
-ProtectSystem=true
-ReadWritePaths=/data /var/log
-ExecStart=/bin/zstor \
-  --log_file /var/log/zstor.log \
-  -c /etc/zstor-default.toml \
-  monitor
-Restart=always
-RestartSec=100ms
-TimeoutStopSec=5m
-
-[Install]
-WantedBy=multi-user.target`,
-
-		"zdb": `[Unit]
-Wants=network.target zstor.service
-After=network.target zstor.service
-
-[Service]
-ProtectHome=true
-ProtectSystem=true
-ReadWritePaths=/data /var/log
-ExecStart=/usr/local/bin/zdb \
-    --index /data/index \
-    --data /data/data \
-    --logfile /var/log/zdb.log \
-    --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
-    --rotate 900
-Restart=always
-RestartSec=5
-TimeoutStopSec=60
-
-[Install]
-WantedBy=multi-user.target`,
-
-		"zdbfs": `[Unit]
-Wants=network.target zdb.service
-After=network.target zdb.service
-
-[Service]
-ExecStart=/usr/local/bin/zdbfs /mnt/qsfs -o autons
-Restart=always
-RestartSec=5
-TimeoutStopSec=5
-
-[Install]
-WantedBy=multi-user.target`,
-	}
-
-	for name, content := range services {
 		path := filepath.Join("/etc/systemd/system", name+".service")
 		fmt.Printf("Creating systemd service %s...\n", name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("failed to write service file %s: %w", path, err)
 		}
 	}
@@ -206,36 +159,22 @@ WantedBy=multi-user.target`,
 }
 
 func setupZinitServices() error {
-	services := map[string]string{
-		"zstor": `exec: /bin/zstor \
-  --log_file /var/log/zstor.log \
-  -c /etc/zstor-default.toml \
-  monitor
-shutdown_timeout: 300`,
-
-		"zdb": `exec: /usr/local/bin/zdb \
-    --index /data/index \
-    --data /data/data \
-    --logfile /var/log/zdb.log \
-    --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
-    --rotate 900
-shutdown_timeout: 60
-after: zstor`,
-
-		"zdbfs": `exec: /usr/local/bin/zdbfs /mnt/qsfs -o autons
-after: zdb`,
-	}
-
+	services := []string{"zstor", "zdb", "zdbfs"}
 	zinitDir := "/etc/zinit"
+	
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
 		return fmt.Errorf("failed to create zinit directory: %w", err)
 	}
 
-	for name, content := range services {
+	for _, name := range services {
+		content, err := serviceFiles.ReadFile("assets/zinit/" + name + ".yaml")
+		if err != nil {
+			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
+		}
+
 		path := filepath.Join(zinitDir, name+".yaml")
 		fmt.Printf("Creating zinit service %s...\n", name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("failed to write service file %s: %w", path, err)
 		}
 	}

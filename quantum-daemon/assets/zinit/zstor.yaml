@@ -1,0 +1,5 @@
+exec: /bin/zstor \
+  --log_file /var/log/zstor.log \
+  -c /etc/zstor-default.toml \
+  monitor
+shutdown_timeout: 300
