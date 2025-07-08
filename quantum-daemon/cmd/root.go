@@ -13,6 +13,8 @@ var rootCmd = &cobra.Command{
 	Long:  `Automates the setup and management of QSFS components including zstor, zdb and zdbfs.`,
 }
 
+var localMode bool
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
