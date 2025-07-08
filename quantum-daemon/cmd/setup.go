@@ -140,14 +140,15 @@ WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1)
 
 func setupLocalZinitBackends() error {
 	for i, port := range []int{9901, 9902, 9903, 9904} {
-		service := fmt.Sprintf(`exec: /usr/local/bin/zdb \
-    --port=%d \
-    --data=/data/data%d \
-    --index=/data/index%d \
-    --logfile=/var/log/zdb%d.log \
-    --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
-    --rotate 900
+		service := fmt.Sprintf(`exec: |
+	/usr/local/bin/zdb
+					--port=%d
+					--data=/data/data%d
+					--index=/data/index%d
+					--logfile=/var/log/zdb%d.log
+					--datasize 67108864
+					--hook /usr/local/bin/zdb-hook.sh
+					--rotate 900
 shutdown_timeout: 60`, port, i+1, i+1, i+1)
 
 		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
@@ -176,7 +177,7 @@ func initNamespaces() error {
 			return err
 		}
 
-		// Meta namespace  
+		// Meta namespace
 		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("meta%d", port-9900)).Run(); err != nil {
 			return fmt.Errorf("failed to create meta namespace on port %d: %w", port, err)
 		}
@@ -329,7 +330,7 @@ func createDirectories() error {
 
 func setupSystemdServices() error {
 	services := []string{"zstor", "zdb", "zdbfs"}
-	
+
 	for _, name := range services {
 		content, err := ServiceFiles.ReadFile("assets/systemd/" + name + ".service")
 		if err != nil {
@@ -362,7 +363,7 @@ func setupSystemdServices() error {
 func setupZinitServices() error {
 	services := []string{"zstor", "zdb", "zdbfs"}
 	zinitDir := "/etc/zinit"
-	
+
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
 		return fmt.Errorf("failed to create zinit directory: %w", err)
 	}
