@@ -126,7 +126,7 @@ func setupSystemdServices() error {
 	services := []string{"zstor", "zdb", "zdbfs"}
 	
 	for _, name := range services {
-		content, err := serviceFiles.ReadFile("assets/systemd/" + name + ".service")
+		content, err := ServiceFiles.ReadFile("assets/systemd/" + name + ".service")
 		if err != nil {
 			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
 		}
@@ -144,7 +144,7 @@ func setupSystemdServices() error {
 		return fmt.Errorf("failed to reload systemd: %w", err)
 	}
 
-	for name := range services {
+	for _, name := range services {
 		cmd := exec.Command("systemctl", "enable", "--now", name)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to enable service %s: %w", name, err)
@@ -163,7 +163,7 @@ func setupZinitServices() error {
 	}
 
 	for _, name := range services {
-		content, err := serviceFiles.ReadFile("assets/zinit/" + name + ".yaml")
+		content, err := ServiceFiles.ReadFile("assets/zinit/" + name + ".yaml")
 		if err != nil {
 			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
 		}

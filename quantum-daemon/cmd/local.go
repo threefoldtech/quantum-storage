@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
+
+	"github.com/spf13/cobra"
 )
 
 var localCmd = &cobra.Command{
