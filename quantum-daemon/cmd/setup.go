@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,9 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
-//go:embed assets/systemd/* assets/zinit/*
-var serviceFiles embed.FS
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",

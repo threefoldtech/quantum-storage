@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"embed"
 )
 
 var rootCmd = &cobra.Command{
@@ -13,7 +14,10 @@ var rootCmd = &cobra.Command{
 	Long:  `Automates the setup and management of QSFS components including zstor, zdb and zdbfs.`,
 }
 
-var localMode bool
+var (
+	LocalMode bool
+	ServiceFiles embed.FS
+)
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
