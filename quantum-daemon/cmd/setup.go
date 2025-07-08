@@ -141,15 +141,14 @@ WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1)
 func setupLocalZinitBackends() error {
 	for i, port := range []int{9901, 9902, 9903, 9904} {
 		service := fmt.Sprintf(`exec: |
-	/usr/local/bin/zdb
-					--port=%d
-					--data=/data/data%d
-					--index=/data/index%d
-					--logfile=/var/log/zdb%d.log
-					--datasize 67108864
-					--hook /usr/local/bin/zdb-hook.sh
-					--rotate 900
-shutdown_timeout: 60`, port, i+1, i+1, i+1)
+  /usr/local/bin/zdb
+    --port %d
+    --data /data/data%d
+    --index /data/index%d
+    --logfile /var/log/zdb%d.log
+    --datasize 67108864
+    --hook /usr/local/bin/zdb-hook.sh
+    --rotate 900`, port, i+1, i+1, i+1)
 
 		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
 		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
