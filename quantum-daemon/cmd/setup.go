@@ -9,10 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	localMode bool
+)
+
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup QSFS components",
-	Long:  `Downloads binaries and configures services for zstor, zdb and zdbfs.`,
+	Long: `Downloads binaries and configures services for zstor, zdb and zdbfs.
+With --local flag, sets up a complete local test environment with backend ZDBs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := setupQSFS(); err != nil {
 			fmt.Printf("Error setting up QSFS: %v\n", err)
@@ -22,6 +27,7 @@ var setupCmd = &cobra.Command{
 }
 
 func init() {
+	setupCmd.Flags().BoolVarP(&localMode, "local", "l", false, "Setup local test environment with backend ZDBs")
 	rootCmd.AddCommand(setupCmd)
 }
 
@@ -44,6 +50,18 @@ func setupQSFS() error {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
+	if localMode {
+		// Setup backend ZDBs for local mode
+		if err := setupLocalBackends(initSystem); err != nil {
+			return fmt.Errorf("failed to setup local backends: %w", err)
+		}
+
+		// Generate local config
+		if err := generateLocalConfig(); err != nil {
+			return err
+		}
+	}
+
 	// Setup services based on init system
 	switch initSystem {
 	case "systemd":
@@ -53,6 +71,193 @@ func setupQSFS() error {
 	default:
 		return fmt.Errorf("unsupported init system: %s", initSystem)
 	}
+}
+
+func setupLocalBackends(initSystem string) error {
+	// Create directories for backend ZDBs
+	for i := 1; i <= 4; i++ {
+		dirs := []string{
+			fmt.Sprintf("/data/data%d", i),
+			fmt.Sprintf("/data/index%d", i),
+		}
+		for _, dir := range dirs {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dir, err)
+			}
+		}
+	}
+
+	// Setup backend ZDB services
+	switch initSystem {
+	case "systemd":
+		return setupLocalSystemdBackends()
+	case "zinit":
+		return setupLocalZinitBackends()
+	default:
+		return fmt.Errorf("unsupported init system for local backends: %s", initSystem)
+	}
+}
+
+func setupLocalSystemdBackends() error {
+	for i, port := range []int{9901, 9902, 9903, 9904} {
+		service := fmt.Sprintf(`[Unit]
+Description=Local ZDB Backend %d
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/zdb \
+    --port=%d \
+    --data=/data/data%d \
+    --index=/data/index%d \
+    --logfile=/var/log/zdb%d.log \
+    --datasize 67108864 \
+    --hook /usr/local/bin/zdb-hook.sh \
+    --rotate 900
+Restart=always
+RestartSec=5
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1)
+
+		path := fmt.Sprintf("/etc/systemd/system/zdb-back%d.service", i+1)
+		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
+			return fmt.Errorf("failed to write service file %s: %w", path, err)
+		}
+
+		cmd := exec.Command("systemctl", "daemon-reload")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to reload systemd: %w", err)
+		}
+
+		cmd = exec.Command("systemctl", "enable", "--now", fmt.Sprintf("zdb-back%d", i+1))
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to enable service zdb-back%d: %w", i+1, err)
+		}
+	}
+	return initNamespaces()
+}
+
+func setupLocalZinitBackends() error {
+	for i, port := range []int{9901, 9902, 9903, 9904} {
+		service := fmt.Sprintf(`exec: /usr/local/bin/zdb \
+    --port=%d \
+    --data=/data/data%d \
+    --index=/data/index%d \
+    --logfile=/var/log/zdb%d.log \
+    --datasize 67108864 \
+    --hook /usr/local/bin/zdb-hook.sh \
+    --rotate 900
+shutdown_timeout: 60`, port, i+1, i+1, i+1)
+
+		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
+		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
+			return fmt.Errorf("failed to write service file %s: %w", path, err)
+		}
+
+		cmd := exec.Command("zinit", "monitor", fmt.Sprintf("zdb-back%d", i+1))
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to monitor service zdb-back%d: %w", i+1, err)
+		}
+	}
+	return initNamespaces()
+}
+
+func initNamespaces() error {
+	for port := 9901; port <= 9904; port++ {
+		// Data namespace
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("data%d", port-9900)).Run(); err != nil {
+			return fmt.Errorf("failed to create data namespace on port %d: %w", port, err)
+		}
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", port-9900), "password", "zdbpassword").Run(); err != nil {
+			return err
+		}
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", port-9900), "mode", "seq").Run(); err != nil {
+			return err
+		}
+
+		// Meta namespace  
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("meta%d", port-9900)).Run(); err != nil {
+			return fmt.Errorf("failed to create meta namespace on port %d: %w", port, err)
+		}
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("meta%d", port-9900), "password", "zdbpassword").Run(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func generateLocalConfig() error {
+	config := `minimal_shards = 2
+expected_shards = 4
+redundant_groups = 0
+redundant_nodes = 0
+root = "/"
+zdbfs_mountpoint = "/mnt/qsfs/"
+socket = "/tmp/zstor.sock"
+prometheus_port = 9200
+zdb_data_dir_path = "/data/data/zdbfs-data/"
+max_zdb_data_dir_size = 64
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "zdb"
+
+[meta.config]
+prefix = "zstor-meta"
+
+[encryption]
+algorithm = "AES"
+key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
+
+[meta.config.encryption]
+algorithm = "AES"
+key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9901"
+namespace = "meta1"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9902"
+namespace = "meta2"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9903"
+namespace = "meta3"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9904"
+namespace = "meta4"
+password = "zdbpassword"
+
+[[groups]]
+[[groups.backends]]
+address = "127.0.0.1:9901"
+namespace = "data1"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9902"
+namespace = "data2"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9903"
+namespace = "data3"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9904"
+namespace = "data4"
+password = "zdbpassword"`
+
+	return os.WriteFile("/etc/zstor-default.toml", []byte(config), 0644)
 }
 
 func detectInitSystem() (string, error) {
