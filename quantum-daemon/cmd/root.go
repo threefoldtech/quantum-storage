@@ -16,8 +16,6 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&Mnemonic, "mnemonic", "m", os.Getenv("MNEMONIC"), "ThreeFold mnemonic for deployment (or use MNEMONIC env var)")
-	rootCmd.PersistentFlags().StringVarP(&Network, "network", "n", os.Getenv("NETWORK"), "TF Grid network (dev, test, main) (or use NETWORK env var)")
 	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "", "Path to YAML config file")
 }
 

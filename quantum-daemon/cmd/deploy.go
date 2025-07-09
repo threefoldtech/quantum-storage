@@ -14,13 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	metaNodes   string
-	dataNodes   string
-	zdbPassword string
-	metaSizeGB  int
-	dataSizeGB  int
-)
 
 func parseNodeIDs(input string) ([]uint32, error) {
 	parts := strings.Split(input, ",")
@@ -42,7 +35,7 @@ var deployCmd = &cobra.Command{
 Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if Mnemonic == "" {
-			fmt.Println("Error: mnemonic is required for deployment (provide via --mnemonic flag, MNEMONIC env var, or config file)")
+			fmt.Println("Error: mnemonic is required for deployment (provide via MNEMONIC env var or config file)")
 			os.Exit(1)
 		}
 
@@ -75,11 +68,6 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 }
 
 func init() {
-	deployCmd.Flags().StringVarP(&metaNodes, "meta-nodes", "", "", "Comma-separated list of node IDs for metadata ZDBs (overrides config)")
-	deployCmd.Flags().StringVarP(&dataNodes, "data-nodes", "", "", "Comma-separated list of node IDs for data ZDBs (overrides config)")
-	deployCmd.Flags().StringVarP(&zdbPassword, "password", "p", "", "Password to use for ZDB namespaces (overrides config)")
-	deployCmd.Flags().IntVarP(&metaSizeGB, "meta-size", "", 1, "Size in GB for metadata ZDBs (overrides config)")
-	deployCmd.Flags().IntVarP(&dataSizeGB, "data-size", "", 10, "Size in GB for data ZDBs (overrides config)")
 	rootCmd.AddCommand(deployCmd)
 }
 
@@ -110,39 +98,14 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 		return err
 	}
 
-	// Override config with CLI flags if provided
-	if metaNodes != "" {
-		ids, err := parseNodeIDs(metaNodes)
-		if err != nil {
-			return fmt.Errorf("invalid meta nodes: %w", err)
-		}
-		metaNodeIDs = ids
-	} else if len(AppConfig.MetaNodes) > 0 {
-		metaNodeIDs = AppConfig.MetaNodes
+	if len(AppConfig.MetaNodes) == 0 {
+		return fmt.Errorf("metadata nodes are required in config")
 	}
-
-	if dataNodes != "" {
-		ids, err := parseNodeIDs(dataNodes)
-		if err != nil {
-			return fmt.Errorf("invalid data nodes: %w", err)
-		}
-		dataNodeIDs = ids
-	} else if len(AppConfig.DataNodes) > 0 {
-		dataNodeIDs = AppConfig.DataNodes
+	if len(AppConfig.DataNodes) == 0 {
+		return fmt.Errorf("data nodes are required in config")
 	}
-
-	if zdbPassword != "" {
-		AppConfig.ZDBPass = zdbPassword
-	} else if AppConfig.ZDBPass == "" {
-		return fmt.Errorf("ZDB password is required (provide via --password or config)")
-	}
-
-	if metaSizeGB != 1 {
-		AppConfig.MetaSizeGB = metaSizeGB
-	}
-
-	if dataSizeGB != 10 {
-		AppConfig.DataSizeGB = dataSizeGB
+	if AppConfig.ZDBPass == "" {
+		return fmt.Errorf("ZDB password is required in config")
 	}
 	// Create grid client
 	relay := "wss://relay.grid.tf"
