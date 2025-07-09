@@ -14,24 +14,6 @@ var rootCmd = &cobra.Command{
 	Use:   "quantum-daemon",
 	Short: "Quantum Storage Filesystem management daemon",
 	Long:  `Automates the setup and management of QSFS components including zstor, zdb and zdbfs.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Validate mnemonic if provided
-		if Mnemonic != "" {
-			relay := "wss://relay.grid.tf"
-			network := Network
-			fmt.Println(network)
-			if AppConfig.Network != "" {
-				network = AppConfig.Network
-			}
-			if network != "main" {
-				relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
-			}
-			if _, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network)); err != nil {
-				fmt.Printf("Invalid mnemonic or connection error: %v\n", err)
-				os.Exit(1)
-			}
-		}
-	},
 }
 
 func init() {
