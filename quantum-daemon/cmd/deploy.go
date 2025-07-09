@@ -65,6 +65,7 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 }
 
 func init() {
+	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor-default.toml", "Path to write generated zstor config")
 	rootCmd.AddCommand(deployCmd)
 }
 
@@ -224,8 +225,7 @@ key = "%x"`, randomKey(), randomKey())
 	}
 
 	// Write config file
-	path := "/etc/zstor-default.toml"
-	if err := os.WriteFile(path, []byte(config), 0644); err != nil {
+	if err := os.WriteFile(ConfigOutPath, []byte(config), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

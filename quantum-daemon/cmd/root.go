@@ -30,9 +30,10 @@ type Config struct {
 }
 
 var (
-	LocalMode    bool
-	ServiceFiles embed.FS
-	Mnemonic     string
+	LocalMode     bool
+	ServiceFiles  embed.FS
+	Mnemonic      string
+	ConfigOutPath string
 	Network      string = func() string {
 		if env := os.Getenv("NETWORK"); env != "" {
 			return env
