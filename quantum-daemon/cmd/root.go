@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
 	"embed"
 )
 
@@ -19,8 +20,8 @@ var rootCmd = &cobra.Command{
 			if Network != "main" {
 				relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
 			}
-			if _, err := sdk.NewSubstrateExt(relay, Mnemonic); err != nil {
-				fmt.Printf("Invalid mnemonic: %v\n", err)
+			if _, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay)); err != nil {
+				fmt.Printf("Invalid mnemonic or connection error: %v\n", err)
 				os.Exit(1)
 			}
 		}
