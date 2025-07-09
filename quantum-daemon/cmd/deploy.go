@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	metaNodes    string
-	dataNodes    string
-	zdbPassword  string
-	metaSizeGB   int
-	dataSizeGB   int
+	metaNodes   string
+	dataNodes   string
+	zdbPassword string
+	metaSizeGB  int
+	dataSizeGB  int
 )
 
 func parseNodeIDs(input string) ([]uint32, error) {
@@ -42,7 +42,7 @@ var deployCmd = &cobra.Command{
 Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if Mnemonic == "" {
-			fmt.Println("Error: mnemonic is required for deployment (provide via --mnemonic or MNEMONIC env var)")
+			fmt.Println("Error: mnemonic is required for deployment (provide via --mnemonic flag, MNEMONIC env var, or config file)")
 			os.Exit(1)
 		}
 

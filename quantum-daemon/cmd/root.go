@@ -7,7 +7,6 @@ import (
 	"embed"
 
 	"github.com/spf13/cobra"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
 )
 
 var rootCmd = &cobra.Command{
