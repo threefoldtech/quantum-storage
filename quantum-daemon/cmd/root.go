@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"embed"
+
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
-	"embed"
 )
 
 var rootCmd = &cobra.Command{
@@ -18,6 +19,7 @@ var rootCmd = &cobra.Command{
 		if Mnemonic != "" {
 			relay := "wss://relay.grid.tf"
 			network := Network
+			fmt.Println(network)
 			if AppConfig.Network != "" {
 				network = AppConfig.Network
 			}
