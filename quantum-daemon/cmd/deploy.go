@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"strconv"
@@ -174,7 +175,68 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 }
 
 func generateRemoteConfig(meta, data []*workloads.ZDB) error {
-	// TODO: Implement config generation similar to generateLocalConfig()
-	// but using the deployed ZDB information
+	config := fmt.Sprintf(`minimal_shards = 2
+expected_shards = 4
+redundant_groups = 0
+redundant_nodes = 0
+root = "/"
+zdbfs_mountpoint = "/mnt/qsfs"
+socket = "/tmp/zstor.sock"
+prometheus_port = 9200
+zdb_data_dir_path = "/data/data/zdbfs-data/"
+max_zdb_data_dir_size = 2560
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "zdb"
+
+[meta.config]
+prefix = "zstor-meta"
+
+[encryption]
+algorithm = "AES"
+key = "%x"
+
+[meta.config.encryption]
+algorithm = "AES"
+key = "%x"`, randomKey(), randomKey())
+
+	// Add meta backends
+	config += "\n\n[[meta.config.backends]]\n"
+	for _, zdb := range meta {
+		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[0])
+		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Name)
+		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
+		if zdb != meta[len(meta)-1] {
+			config += "[[meta.config.backends]]\n"
+		}
+	}
+
+	// Add data backends
+	config += "[[groups]]\n"
+	for _, zdb := range data {
+		config += fmt.Sprintf("[[groups.backends]]\n")
+		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[0])
+		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Name)
+		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
+	}
+
+	// Write config file
+	path := "/etc/zstor-default.toml"
+	if err := os.WriteFile(path, []byte(config), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	fmt.Printf("Generated zstor config at %s\n", path)
 	return nil
+}
+
+func randomKey() string {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		panic("failed to generate random key")
+	}
+	return fmt.Sprintf("%x", key)
 }
