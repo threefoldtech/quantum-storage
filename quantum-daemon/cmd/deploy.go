@@ -39,28 +39,29 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 			os.Exit(1)
 		}
 
-		metaNodeIDs, err := parseNodeIDs(metaNodes)
-		if err != nil {
-			fmt.Printf("Error parsing metadata nodes: %v\n", err)
-			os.Exit(1)
-		}
-		dataNodeIDs, err := parseNodeIDs(dataNodes)
-		if err != nil {
-			fmt.Printf("Error parsing data nodes: %v\n", err)
+		if err := loadConfig(); err != nil {
+			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
 		}
 
-		if len(metaNodeIDs) == 0 || len(dataNodeIDs) == 0 {
-			fmt.Println("Error: both metadata and data nodes must be specified")
+		if len(AppConfig.MetaNodes) == 0 {
+			fmt.Println("Error: metadata nodes are required in config")
 			os.Exit(1)
 		}
-
-		if strings.ContainsAny(zdbPassword, "- ") {
+		if len(AppConfig.DataNodes) == 0 {
+			fmt.Println("Error: data nodes are required in config")
+			os.Exit(1)
+		}
+		if AppConfig.ZDBPass == "" {
+			fmt.Println("Error: ZDB password is required in config")
+			os.Exit(1)
+		}
+		if strings.ContainsAny(AppConfig.ZDBPass, "- ") {
 			fmt.Println("Error: ZDB password cannot contain dashes or spaces")
 			os.Exit(1)
 		}
 
-		if err := deployBackends(metaNodeIDs, dataNodeIDs); err != nil {
+		if err := deployBackends(AppConfig.MetaNodes, AppConfig.DataNodes); err != nil {
 			fmt.Printf("Error deploying backends: %v\n", err)
 			os.Exit(1)
 		}
@@ -122,12 +123,12 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	}
 
 	// Deploy metadata ZDBs
-	metaDeployments := make([]*workloads.ZDB, len(metaNodes))
+	metaDeployments := make([]*workloads.ZDB, len(metaNodeIDs))
 	for i, nodeID := range metaNodeIDs {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    zdbPassword,
+			Password:    AppConfig.ZDBPass,
 			Public:      false,
 			SizeGB:      uint64(AppConfig.MetaSizeGB),
 			Description: "QSFS metadata namespace",
@@ -144,12 +145,12 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	}
 
 	// Deploy data ZDBs
-	dataDeployments := make([]*workloads.ZDB, len(dataNodes))
+	dataDeployments := make([]*workloads.ZDB, len(dataNodeIDs))
 	for i, nodeID := range dataNodeIDs {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    zdbPassword,
+			Password:    AppConfig.ZDBPass,
 			Public:      false,
 			SizeGB:      uint64(AppConfig.DataSizeGB),
 			Description: "QSFS data namespace",
