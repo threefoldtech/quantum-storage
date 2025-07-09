@@ -17,10 +17,14 @@ var rootCmd = &cobra.Command{
 		// Validate mnemonic if provided
 		if Mnemonic != "" {
 			relay := "wss://relay.grid.tf"
-			if Network != "main" {
-				relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
+			network := Network
+			if AppConfig.Network != "" {
+				network = AppConfig.Network
 			}
-			if _, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay)); err != nil {
+			if network != "main" {
+				relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
+			}
+			if _, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network)); err != nil {
 				fmt.Printf("Invalid mnemonic or connection error: %v\n", err)
 				os.Exit(1)
 			}
