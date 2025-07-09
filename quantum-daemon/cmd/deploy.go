@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -161,7 +162,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			SizeGB:      AppConfig.MetaSizeGB,
+			SizeGB:      uint64(AppConfig.MetaSizeGB),
 			Description: "QSFS metadata namespace",
 			Mode:        workloads.ZDBModeUser,
 		}
@@ -183,7 +184,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			SizeGB:      AppConfig.DataSizeGB,
+			SizeGB:      uint64(AppConfig.DataSizeGB),
 			Description: "QSFS data namespace",
 			Mode:        workloads.ZDBModeSeq,
 		}
