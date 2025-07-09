@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -13,10 +15,23 @@ import (
 )
 
 var (
-	metaNodes []uint32
-	dataNodes []uint32
+	metaNodes   string
+	dataNodes   string
 	zdbPassword string
 )
+
+func parseNodeIDs(input string) ([]uint32, error) {
+	parts := strings.Split(input, ",")
+	ids := make([]uint32, 0, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseUint(strings.TrimSpace(part), 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, uint32(id))
+	}
+	return ids, nil
+}
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
@@ -29,7 +44,18 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 			os.Exit(1)
 		}
 
-		if len(metaNodes) == 0 || len(dataNodes) == 0 {
+		metaNodeIDs, err := parseNodeIDs(metaNodes)
+		if err != nil {
+			fmt.Printf("Error parsing metadata nodes: %v\n", err)
+			os.Exit(1)
+		}
+		dataNodeIDs, err := parseNodeIDs(dataNodes)
+		if err != nil {
+			fmt.Printf("Error parsing data nodes: %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(metaNodeIDs) == 0 || len(dataNodeIDs) == 0 {
 			fmt.Println("Error: both metadata and data nodes must be specified")
 			os.Exit(1)
 		}
@@ -42,8 +68,8 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 }
 
 func init() {
-	deployCmd.Flags().Uint32SliceVarP(&metaNodes, "meta-nodes", "", []uint32{}, "Comma-separated list of node IDs for metadata ZDBs")
-	deployCmd.Flags().Uint32SliceVarP(&dataNodes, "data-nodes", "", []uint32{}, "Comma-separated list of node IDs for data ZDBs")
+	deployCmd.Flags().StringVarP(&metaNodes, "meta-nodes", "", "", "Comma-separated list of node IDs for metadata ZDBs")
+	deployCmd.Flags().StringVarP(&dataNodes, "data-nodes", "", "", "Comma-separated list of node IDs for data ZDBs")
 	deployCmd.Flags().StringVarP(&zdbPassword, "password", "p", "", "Password to use for ZDB namespaces (required)")
 	deployCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(deployCmd)
@@ -55,7 +81,7 @@ func deployBackends() error {
 	if Network != "main" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
 	}
-	grid, err := deployer.NewTFPluginClient(Mnemonic, relay, Network)
+	grid, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelay(relay), deployer.WithNetwork(Network))
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
@@ -68,13 +94,13 @@ func deployBackends() error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			Size:        1, // 1GB
+			SizeGB:      1, // 1GB
 			Description: "QSFS metadata namespace",
 			Mode:        workloads.ZDBModeUser,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("meta-%d", nodeID), nodeID, "", nil, nil, []workloads.ZDB{zdb}, nil, nil, nil)
-		if err := grid.DeploymentDeployer.Deploy(context.Background(), dl); err != nil {
+		dl := workloads.NewDeployment(fmt.Sprintf("meta-%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy metadata ZDB on node %d", nodeID)
 		}
 
@@ -90,13 +116,13 @@ func deployBackends() error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			Size:        10, // 10GB
+			SizeGB:      10, // 10GB
 			Description: "QSFS data namespace",
 			Mode:        workloads.ZDBModeSeq,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("data-%d", nodeID), nodeID, "", nil, nil, []workloads.ZDB{zdb}, nil, nil, nil)
-		if err := grid.DeploymentDeployer.Deploy(context.Background(), dl); err != nil {
+		dl := workloads.NewDeployment(fmt.Sprintf("data-%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy data ZDB on node %d", nodeID)
 		}
 
