@@ -59,7 +59,7 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 			os.Exit(1)
 		}
 
-		if err := deployBackends(); err != nil {
+		if err := deployBackends(metaNodeIDs, dataNodeIDs); err != nil {
 			fmt.Printf("Error deploying backends: %v\n", err)
 			os.Exit(1)
 		}
@@ -74,20 +74,20 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-func deployBackends() error {
+func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	// Create grid client
 	relay := "wss://relay.grid.tf"
 	if Network != "main" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
 	}
-	grid, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelay(relay), deployer.WithNetwork(Network))
+	grid, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(Network))
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
 	// Deploy metadata ZDBs
 	metaDeployments := make([]*workloads.ZDB, len(metaNodes))
-	for i, nodeID := range metaNodes {
+	for i, nodeID := range metaNodeIDs {
 		ns := fmt.Sprintf("meta-%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
@@ -109,7 +109,7 @@ func deployBackends() error {
 
 	// Deploy data ZDBs
 	dataDeployments := make([]*workloads.ZDB, len(dataNodes))
-	for i, nodeID := range dataNodes {
+	for i, nodeID := range dataNodeIDs {
 		ns := fmt.Sprintf("data-%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
