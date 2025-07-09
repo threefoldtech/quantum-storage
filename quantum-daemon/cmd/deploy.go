@@ -14,9 +14,11 @@ import (
 )
 
 var (
-	metaNodes   string
-	dataNodes   string
-	zdbPassword string
+	metaNodes    string
+	dataNodes    string
+	zdbPassword  string
+	metaSizeGB   int
+	dataSizeGB   int
 )
 
 func parseNodeIDs(input string) ([]uint32, error) {
@@ -72,14 +74,75 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 }
 
 func init() {
-	deployCmd.Flags().StringVarP(&metaNodes, "meta-nodes", "", "", "Comma-separated list of node IDs for metadata ZDBs")
-	deployCmd.Flags().StringVarP(&dataNodes, "data-nodes", "", "", "Comma-separated list of node IDs for data ZDBs")
-	deployCmd.Flags().StringVarP(&zdbPassword, "password", "p", "", "Password to use for ZDB namespaces (required)")
-	deployCmd.MarkFlagRequired("password")
+	deployCmd.Flags().StringVarP(&metaNodes, "meta-nodes", "", "", "Comma-separated list of node IDs for metadata ZDBs (overrides config)")
+	deployCmd.Flags().StringVarP(&dataNodes, "data-nodes", "", "", "Comma-separated list of node IDs for data ZDBs (overrides config)")
+	deployCmd.Flags().StringVarP(&zdbPassword, "password", "p", "", "Password to use for ZDB namespaces (overrides config)")
+	deployCmd.Flags().IntVarP(&metaSizeGB, "meta-size", "", 1, "Size in GB for metadata ZDBs (overrides config)")
+	deployCmd.Flags().IntVarP(&dataSizeGB, "data-size", "", 10, "Size in GB for data ZDBs (overrides config)")
 	rootCmd.AddCommand(deployCmd)
 }
 
+func loadConfig() error {
+	if ConfigFile != "" {
+		data, err := os.ReadFile(ConfigFile)
+		if err != nil {
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+		if err := yaml.Unmarshal(data, &AppConfig); err != nil {
+			return fmt.Errorf("failed to parse config file: %w", err)
+		}
+	}
+
+	// Override with ENV vars if set
+	if env := os.Getenv("NETWORK"); env != "" {
+		AppConfig.Network = env
+	}
+	if env := os.Getenv("MNEMONIC"); env != "" {
+		AppConfig.Mnemonic = env
+	}
+
+	return nil
+}
+
 func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
+	if err := loadConfig(); err != nil {
+		return err
+	}
+
+	// Override config with CLI flags if provided
+	if metaNodes != "" {
+		ids, err := parseNodeIDs(metaNodes)
+		if err != nil {
+			return fmt.Errorf("invalid meta nodes: %w", err)
+		}
+		metaNodeIDs = ids
+	} else if len(AppConfig.MetaNodes) > 0 {
+		metaNodeIDs = AppConfig.MetaNodes
+	}
+
+	if dataNodes != "" {
+		ids, err := parseNodeIDs(dataNodes)
+		if err != nil {
+			return fmt.Errorf("invalid data nodes: %w", err)
+		}
+		dataNodeIDs = ids
+	} else if len(AppConfig.DataNodes) > 0 {
+		dataNodeIDs = AppConfig.DataNodes
+	}
+
+	if zdbPassword != "" {
+		AppConfig.ZDBPass = zdbPassword
+	} else if AppConfig.ZDBPass == "" {
+		return fmt.Errorf("ZDB password is required (provide via --password or config)")
+	}
+
+	if metaSizeGB != 1 {
+		AppConfig.MetaSizeGB = metaSizeGB
+	}
+
+	if dataSizeGB != 10 {
+		AppConfig.DataSizeGB = dataSizeGB
+	}
 	// Create grid client
 	relay := "wss://relay.grid.tf"
 	if Network != "main" && Network != "" {
@@ -98,7 +161,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			SizeGB:      1, // 1GB
+			SizeGB:      AppConfig.MetaSizeGB,
 			Description: "QSFS metadata namespace",
 			Mode:        workloads.ZDBModeUser,
 		}
@@ -120,7 +183,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Name:        ns,
 			Password:    zdbPassword,
 			Public:      false,
-			SizeGB:      10, // 10GB
+			SizeGB:      AppConfig.DataSizeGB,
 			Description: "QSFS data namespace",
 			Mode:        workloads.ZDBModeSeq,
 		}

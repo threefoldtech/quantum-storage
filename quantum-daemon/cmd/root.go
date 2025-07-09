@@ -31,18 +31,31 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&Mnemonic, "mnemonic", "m", os.Getenv("MNEMONIC"), "ThreeFold mnemonic for deployment (or use MNEMONIC env var)")
 	rootCmd.PersistentFlags().StringVarP(&Network, "network", "n", os.Getenv("NETWORK"), "TF Grid network (dev, test, main) (or use NETWORK env var)")
+	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "", "Path to YAML config file")
+}
+
+type Config struct {
+	Network    string   `yaml:"network"`
+	Mnemonic   string   `yaml:"mnemonic"`
+	MetaNodes  []uint32 `yaml:"meta_nodes"`
+	DataNodes  []uint32 `yaml:"data_nodes"`
+	ZDBPass    string   `yaml:"zdb_password"`
+	MetaSizeGB int      `yaml:"meta_size_gb"`
+	DataSizeGB int      `yaml:"data_size_gb"`
 }
 
 var (
-	LocalMode bool
+	LocalMode    bool
 	ServiceFiles embed.FS
-	Mnemonic string
-	Network string = func() string {
+	Mnemonic     string
+	Network      string = func() string {
 		if env := os.Getenv("NETWORK"); env != "" {
 			return env
 		}
 		return "dev" // default to devnet
 	}()
+	ConfigFile string
+	AppConfig  Config
 )
 
 func Execute() {
