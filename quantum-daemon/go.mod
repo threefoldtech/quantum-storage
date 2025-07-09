@@ -8,6 +8,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/threefoldtech/tfgrid-sdk-go/grid-client v0.16.8
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
