@@ -39,7 +39,7 @@ var deployCmd = &cobra.Command{
 Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if Mnemonic == "" {
-			fmt.Println("Error: mnemonic is required for deployment")
+			fmt.Println("Error: mnemonic is required for deployment (provide via --mnemonic or MNEMONIC env var)")
 			os.Exit(1)
 		}
 

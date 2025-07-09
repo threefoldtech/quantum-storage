@@ -29,7 +29,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&Mnemonic, "mnemonic", "m", "", "ThreeFold mnemonic for deployment")
+	rootCmd.PersistentFlags().StringVarP(&Mnemonic, "mnemonic", "m", os.Getenv("MNEMONIC"), "ThreeFold mnemonic for deployment (or use MNEMONIC env var)")
 	rootCmd.PersistentFlags().StringVarP(&Network, "network", "n", "dev", "TF Grid network (dev, test, main)")
 }
 
