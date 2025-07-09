@@ -34,11 +34,6 @@ var deployCmd = &cobra.Command{
 	Long: `Deploys metadata and data ZDBs on specified nodes.
 Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if Mnemonic == "" {
-			fmt.Println("Error: mnemonic is required for deployment (provide via MNEMONIC env var or config file)")
-			os.Exit(1)
-		}
-
 		if err := loadConfig(); err != nil {
 			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
@@ -91,6 +86,10 @@ func loadConfig() error {
 		AppConfig.Mnemonic = env
 	}
 
+	if AppConfig.Mnemonic == "" {
+		return fmt.Errorf("mnemonic is required for deployment (provide via MNEMONIC env var or config file)")
+	}
+
 	return nil
 }
 
@@ -117,7 +116,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	if network != "main" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
 	}
-	grid, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network))
+	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network))
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
