@@ -15,6 +15,7 @@ import (
 var (
 	metaNodes []uint32
 	dataNodes []uint32
+	zdbPassword string
 )
 
 var deployCmd = &cobra.Command{
@@ -43,6 +44,8 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 func init() {
 	deployCmd.Flags().Uint32SliceVarP(&metaNodes, "meta-nodes", "", []uint32{}, "Comma-separated list of node IDs for metadata ZDBs")
 	deployCmd.Flags().Uint32SliceVarP(&dataNodes, "data-nodes", "", []uint32{}, "Comma-separated list of node IDs for data ZDBs")
+	deployCmd.Flags().StringVarP(&zdbPassword, "password", "p", "", "Password to use for ZDB namespaces (required)")
+	deployCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(deployCmd)
 }
 
@@ -59,7 +62,7 @@ func deployBackends() error {
 		ns := fmt.Sprintf("meta-%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    "zdbpassword",
+			Password:    zdbPassword,
 			Public:      false,
 			Size:        1, // 1GB
 			Description: "QSFS metadata namespace",
@@ -81,7 +84,7 @@ func deployBackends() error {
 		ns := fmt.Sprintf("data-%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    "zdbpassword",
+			Password:    zdbPassword,
 			Public:      false,
 			Size:        10, // 10GB
 			Description: "QSFS data namespace",
