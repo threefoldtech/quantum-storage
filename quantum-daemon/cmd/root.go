@@ -15,7 +15,11 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Validate mnemonic if provided
 		if Mnemonic != "" {
-			if _, err := sdk.NewSubstrateExt("wss://relay.dev.grid.tf", Mnemonic); err != nil {
+			relay := "wss://relay.grid.tf"
+			if Network != "main" {
+				relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
+			}
+			if _, err := sdk.NewSubstrateExt(relay, Mnemonic); err != nil {
 				fmt.Printf("Invalid mnemonic: %v\n", err)
 				os.Exit(1)
 			}
