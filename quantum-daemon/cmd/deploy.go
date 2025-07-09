@@ -229,7 +229,7 @@ key = "%x"`, randomKey(), randomKey())
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	fmt.Printf("Generated zstor config at %s\n", path)
+	fmt.Printf("Generated zstor config at %s\n", ConfigOutPath)
 	return nil
 }
 
