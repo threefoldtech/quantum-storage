@@ -7,4 +7,4 @@ exec: |
     --hook /usr/local/bin/zdb-hook.sh
     --rotate 900
 shutdown_timeout: 60
-after: zstor
+after: [zstor]

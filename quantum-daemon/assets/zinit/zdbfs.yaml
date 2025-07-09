@@ -2,4 +2,4 @@ exec: |
   /usr/local/bin/zdbfs
     /mnt/qsfs
     -o autons
-after: zdb
+after: [zdb]

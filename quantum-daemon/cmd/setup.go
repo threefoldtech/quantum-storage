@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -145,10 +146,7 @@ func setupLocalZinitBackends() error {
     --port %d
     --data /data/data%d
     --index /data/index%d
-    --logfile /var/log/zdb%d.log
-    --datasize 67108864
-    --hook /usr/local/bin/zdb-hook.sh
-    --rotate 900`, port, i+1, i+1, i+1)
+    --logfile /var/log/zdb%d.log`, port, i+1, i+1, i+1)
 
 		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
 		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
@@ -160,6 +158,8 @@ func setupLocalZinitBackends() error {
 			return fmt.Errorf("failed to monitor service zdb-back%d: %w", i+1, err)
 		}
 	}
+	// Wait for ZDB to start up
+	time.Sleep(2 * time.Second)
 	return initNamespaces()
 }
 
