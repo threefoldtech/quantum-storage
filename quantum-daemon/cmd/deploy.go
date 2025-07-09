@@ -77,7 +77,7 @@ func init() {
 func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	// Create grid client
 	relay := "wss://relay.grid.tf"
-	if Network != "main" {
+	if Network != "main" && Network != "" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", Network)
 	}
 	grid, err := deployer.NewTFPluginClient(Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(Network))

@@ -30,14 +30,19 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&Mnemonic, "mnemonic", "m", os.Getenv("MNEMONIC"), "ThreeFold mnemonic for deployment (or use MNEMONIC env var)")
-	rootCmd.PersistentFlags().StringVarP(&Network, "network", "n", "dev", "TF Grid network (dev, test, main)")
+	rootCmd.PersistentFlags().StringVarP(&Network, "network", "n", os.Getenv("NETWORK"), "TF Grid network (dev, test, main) (or use NETWORK env var)")
 }
 
 var (
 	LocalMode bool
 	ServiceFiles embed.FS
 	Mnemonic string
-	Network string = "dev" // default to devnet
+	Network string = func() string {
+		if env := os.Getenv("NETWORK"); env != "" {
+			return env
+		}
+		return "dev" // default to devnet
+	}()
 )
 
 func Execute() {
