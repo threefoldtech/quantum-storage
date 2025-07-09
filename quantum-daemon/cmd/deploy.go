@@ -59,6 +59,11 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 			os.Exit(1)
 		}
 
+		if strings.ContainsAny(zdbPassword, "- ") {
+			fmt.Println("Error: ZDB password cannot contain dashes or spaces")
+			os.Exit(1)
+		}
+
 		if err := deployBackends(metaNodeIDs, dataNodeIDs); err != nil {
 			fmt.Printf("Error deploying backends: %v\n", err)
 			os.Exit(1)
@@ -88,7 +93,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	// Deploy metadata ZDBs
 	metaDeployments := make([]*workloads.ZDB, len(metaNodes))
 	for i, nodeID := range metaNodeIDs {
-		ns := fmt.Sprintf("meta-%d", nodeID)
+		ns := fmt.Sprintf("meta_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
 			Password:    zdbPassword,
@@ -98,7 +103,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeUser,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("meta-%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		dl := workloads.NewDeployment(fmt.Sprintf("meta_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy metadata ZDB on node %d", nodeID)
 		}
@@ -110,7 +115,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	// Deploy data ZDBs
 	dataDeployments := make([]*workloads.ZDB, len(dataNodes))
 	for i, nodeID := range dataNodeIDs {
-		ns := fmt.Sprintf("data-%d", nodeID)
+		ns := fmt.Sprintf("data_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
 			Password:    zdbPassword,
@@ -120,7 +125,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeSeq,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("data-%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		dl := workloads.NewDeployment(fmt.Sprintf("data_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy data ZDB on node %d", nodeID)
 		}
