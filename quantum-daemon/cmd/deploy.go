@@ -105,7 +105,7 @@ func destroyBackends() error {
 	// Destroy metadata deployments
 	for _, nodeID := range AppConfig.MetaNodes {
 		projectName := fmt.Sprintf("vm/meta_%d", nodeID)
-		if err := grid.CancelByProjectName(context.TODO(), projectName); err != nil {
+		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy metadata deployment on node %d", nodeID)
 		}
 		fmt.Printf("Destroyed metadata deployment on node %d\n", nodeID)
@@ -114,7 +114,7 @@ func destroyBackends() error {
 	// Destroy data deployments
 	for _, nodeID := range AppConfig.DataNodes {
 		projectName := fmt.Sprintf("vm/data_%d", nodeID)
-		if err := grid.CancelByProjectName(context.TODO(), projectName); err != nil {
+		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy data deployment on node %d", nodeID)
 		}
 		fmt.Printf("Destroyed data deployment on node %d\n", nodeID)
