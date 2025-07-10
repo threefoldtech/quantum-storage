@@ -301,5 +301,6 @@ func randomKey() string {
 	if _, err := rand.Read(key); err != nil {
 		panic("failed to generate random key")
 	}
-	return fmt.Sprintf("%x", key)
+	// Format as 32 hex bytes (64 chars) without spaces or dashes
+	return fmt.Sprintf("%064x", key)
 }
