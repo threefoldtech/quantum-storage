@@ -15,7 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
 func parseNodeIDs(input string) ([]uint32, error) {
 	parts := strings.Split(input, ",")
 	ids := make([]uint32, 0, len(parts))
@@ -94,8 +93,8 @@ func destroyBackends() error {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
 	}
 
-	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic, 
-		deployer.WithRelayURL(relay), 
+	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic,
+		deployer.WithRelayURL(relay),
 		deployer.WithNetwork(network),
 		deployer.WithRMBTimeout(100))
 	if err != nil {
@@ -104,7 +103,7 @@ func destroyBackends() error {
 
 	// Destroy metadata deployments
 	for _, nodeID := range AppConfig.MetaNodes {
-		projectName := fmt.Sprintf("vm/meta_%d", nodeID)
+		projectName := fmt.Sprintf("meta_%d", nodeID)
 		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy metadata deployment on node %d", nodeID)
 		}
@@ -113,7 +112,7 @@ func destroyBackends() error {
 
 	// Destroy data deployments
 	for _, nodeID := range AppConfig.DataNodes {
-		projectName := fmt.Sprintf("vm/data_%d", nodeID)
+		projectName := fmt.Sprintf("data_%d", nodeID)
 		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy data deployment on node %d", nodeID)
 		}
