@@ -33,8 +33,16 @@ var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy backend ZDBs on the ThreeFold Grid",
 	Long: `Deploys metadata and data ZDBs on specified nodes.
-Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
+Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.
+Use --destroy to remove existing deployments.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if destroyDeployments {
+			if err := destroyBackends(); err != nil {
+				fmt.Printf("Error destroying deployments: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
 		if err := loadConfig(); err != nil {
 			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
@@ -64,9 +72,55 @@ Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	},
 }
 
+var destroyDeployments bool
+
 func init() {
+	deployCmd.Flags().BoolVarP(&destroyDeployments, "destroy", "d", false, "Destroy existing deployments")
 	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor-default.toml", "Path to write generated zstor config")
 	rootCmd.AddCommand(deployCmd)
+}
+
+func destroyBackends() error {
+	if err := loadConfig(); err != nil {
+		return err
+	}
+
+	relay := "wss://relay.grid.tf"
+	network := Network
+	if AppConfig.Network != "" {
+		network = AppConfig.Network
+	}
+	if network != "main" {
+		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
+	}
+
+	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic, 
+		deployer.WithRelayURL(relay), 
+		deployer.WithNetwork(network),
+		deployer.WithRMBTimeout(100))
+	if err != nil {
+		return errors.Wrap(err, "failed to create grid client")
+	}
+
+	// Destroy metadata deployments
+	for _, nodeID := range AppConfig.MetaNodes {
+		projectName := fmt.Sprintf("meta_%d", nodeID)
+		if err := grid.DeploymentDeployer.CancelByProjectName(context.TODO(), projectName); err != nil {
+			return errors.Wrapf(err, "failed to destroy metadata deployment on node %d", nodeID)
+		}
+		fmt.Printf("Destroyed metadata deployment on node %d\n", nodeID)
+	}
+
+	// Destroy data deployments
+	for _, nodeID := range AppConfig.DataNodes {
+		projectName := fmt.Sprintf("data_%d", nodeID)
+		if err := grid.DeploymentDeployer.CancelByProjectName(context.TODO(), projectName); err != nil {
+			return errors.Wrapf(err, "failed to destroy data deployment on node %d", nodeID)
+		}
+		fmt.Printf("Destroyed data deployment on node %d\n", nodeID)
+	}
+
+	return nil
 }
 
 func loadConfig() error {
