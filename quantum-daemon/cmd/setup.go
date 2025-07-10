@@ -261,12 +261,20 @@ password = "zdbpassword"`
 }
 
 func detectInitSystem() (string, error) {
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		return "systemd", nil
+	// First check if systemd is actually running as PID 1
+	if _, err := os.Stat("/proc/1/comm"); err == nil {
+		if comm, err := os.ReadFile("/proc/1/comm"); err == nil {
+			if strings.TrimSpace(string(comm)) == "systemd" {
+				return "systemd", nil
+			}
+		}
 	}
+
+	// Fall back to checking for zinit
 	if _, err := exec.LookPath("zinit"); err == nil {
 		return "zinit", nil
 	}
+
 	return "", fmt.Errorf("no supported init system found")
 }
 
