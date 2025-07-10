@@ -261,11 +261,11 @@ prefix = "zstor-meta"
 
 [encryption]
 algorithm = "AES"
-key = "%032x"
+key = "%s"
 
 [meta.config.encryption]
 algorithm = "AES"
-key = "%032x"`, randomKey(), randomKey())
+key = "%s"`, randomKey(), randomKey())
 
 	// Add meta backends
 	config += "\n\n[[meta.config.backends]]\n"
