@@ -271,7 +271,7 @@ key = "%s"`, randomKey(), randomKey())
 	config += "\n\n[[meta.config.backends]]\n"
 	for _, zdb := range meta {
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
-		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Name)
+		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
 		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
 		if zdb != meta[len(meta)-1] {
 			config += "[[meta.config.backends]]\n"
@@ -283,7 +283,7 @@ key = "%s"`, randomKey(), randomKey())
 	for _, zdb := range data {
 		config += fmt.Sprintf("[[groups.backends]]\n")
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
-		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Name)
+		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
 		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
 	}
 
