@@ -190,12 +190,17 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeUser,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("meta_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		dl := workloads.NewDeployment(fmt.Sprintf("meta_%d", nodeID), nodeID, fmt.Sprintf("meta_%d", nodeID), nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy metadata ZDB on node %d", nodeID)
 		}
 
-		metaDeployments[i] = &zdb
+		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, zdb.Name, dl.Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", zdb.Name, nodeID)
+		}
+
+		metaDeployments[i] = &resZDB
 		fmt.Printf("Deployed metadata ZDB '%s' on node %d\n", ns, nodeID)
 	}
 
@@ -212,12 +217,17 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeSeq,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("data_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		dl := workloads.NewDeployment(fmt.Sprintf("data_%d", nodeID), nodeID, fmt.Sprintf("data_%d", nodeID), nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
 			return errors.Wrapf(err, "failed to deploy data ZDB on node %d", nodeID)
 		}
 
-		dataDeployments[i] = &zdb
+		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, zdb.Name, dl.Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", zdb.Name, nodeID)
+		}
+
+		dataDeployments[i] = &resZDB
 		fmt.Printf("Deployed data ZDB '%s' on node %d\n", ns, nodeID)
 	}
 
