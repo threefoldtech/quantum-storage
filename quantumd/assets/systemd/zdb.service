@@ -1,6 +1,6 @@
 [Unit]
-Wants=network.target zstor.service
-After=network.target zstor.service
+Wants=network.target zstor.service quantumd.service
+After=network.target zstor.service quantumd.service
 
 [Service]
 ProtectHome=true

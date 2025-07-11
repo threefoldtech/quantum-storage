@@ -7,4 +7,4 @@ exec: |
     --hook /usr/local/bin/quantumd-hook \
     --rotate 900
 shutdown_timeout: 60
-after: [zstor]
+after: [zstor, quantumd]

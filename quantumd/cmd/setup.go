@@ -329,7 +329,7 @@ func createDirectories() error {
 }
 
 func setupSystemdServices() error {
-	services := []string{"zstor", "zdb", "zdbfs"}
+	services := []string{"zstor", "zdb", "zdbfs", "quantumd"}
 
 	for _, name := range services {
 		content, err := ServiceFiles.ReadFile("assets/systemd/" + name + ".service")
@@ -361,7 +361,7 @@ func setupSystemdServices() error {
 }
 
 func setupZinitServices() error {
-	services := []string{"zstor", "zdb", "zdbfs"}
+	services := []string{"zstor", "zdb", "zdbfs", "quantumd"}
 	zinitDir := "/etc/zinit"
 
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {

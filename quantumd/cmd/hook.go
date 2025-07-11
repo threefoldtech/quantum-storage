@@ -21,7 +21,9 @@ It communicates with the main quantumd daemon via a Unix socket, passing all arg
 		// Connect to the unix socket
 		conn, err := net.Dial("unix", socketPath)
 		if err != nil {
-			return fmt.Errorf("could not connect to quantumd daemon socket at %s: %w. is the daemon running?", socketPath, err)
+			// Log the error to stderr but exit with 0
+			fmt.Fprintf(cmd.ErrOrStderr(), "could not connect to quantumd daemon socket at %s: %v. is the daemon running?\n", socketPath, err)
+			return nil
 		}
 		defer conn.Close()
 
@@ -31,7 +33,9 @@ It communicates with the main quantumd daemon via a Unix socket, passing all arg
 		// Write the message to the socket
 		_, err = conn.Write([]byte(message))
 		if err != nil {
-			return fmt.Errorf("failed to send hook message to daemon: %w", err)
+			// Log the error to stderr but exit with 0
+			fmt.Fprintf(cmd.ErrOrStderr(), "failed to send hook message to daemon: %v\n", err)
+			return nil
 		}
 
 		fmt.Printf("Hook message sent to daemon: %s", message)
