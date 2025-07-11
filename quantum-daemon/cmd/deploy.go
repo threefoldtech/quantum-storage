@@ -176,9 +176,9 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	// Deploy metadata ZDBs
-	metaDeployments := make([]*workloads.ZDB, len(metaNodeIDs))
-	for i, nodeID := range metaNodeIDs {
+	// Prepare metadata deployments
+	var metaDeploymentConfigs []*workloads.Deployment
+	for _, nodeID := range metaNodeIDs {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
@@ -189,23 +189,13 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeUser,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("meta_%d", nodeID), nodeID, fmt.Sprintf("meta_%d", nodeID), nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
-			return errors.Wrapf(err, "failed to deploy metadata ZDB on node %d", nodeID)
-		}
-
-		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, zdb.Name, dl.Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", zdb.Name, nodeID)
-		}
-
-		metaDeployments[i] = &resZDB
-		fmt.Printf("Deployed metadata ZDB '%s' on node %d\n", ns, nodeID)
+		dl := workloads.NewDeployment(fmt.Sprintf("meta_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		metaDeploymentConfigs = append(metaDeploymentConfigs, &dl)
 	}
 
-	// Deploy data ZDBs
-	dataDeployments := make([]*workloads.ZDB, len(dataNodeIDs))
-	for i, nodeID := range dataNodeIDs {
+	// Prepare data deployments
+	var dataDeploymentConfigs []*workloads.Deployment
+	for _, nodeID := range dataNodeIDs {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
@@ -216,14 +206,46 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 			Mode:        workloads.ZDBModeSeq,
 		}
 
-		dl := workloads.NewDeployment(fmt.Sprintf("data_%d", nodeID), nodeID, fmt.Sprintf("data_%d", nodeID), nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-		if err := grid.DeploymentDeployer.Deploy(context.TODO(), &dl); err != nil {
-			return errors.Wrapf(err, "failed to deploy data ZDB on node %d", nodeID)
+		dl := workloads.NewDeployment(fmt.Sprintf("data_%d", nodeID), nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+		dataDeploymentConfigs = append(dataDeploymentConfigs, &dl)
+	}
+
+	// Batch deploy metadata ZDBs
+	fmt.Printf("Batch deploying %d metadata ZDBs...\n", len(metaDeploymentConfigs))
+	if err := grid.DeploymentDeployer.BatchDeploy(context.TODO(), metaDeploymentConfigs); err != nil {
+		return errors.Wrap(err, "failed to batch deploy metadata ZDBs")
+	}
+
+	// Batch deploy data ZDBs
+	fmt.Printf("Batch deploying %d data ZDBs...\n", len(dataDeploymentConfigs))
+	if err := grid.DeploymentDeployer.BatchDeploy(context.TODO(), dataDeploymentConfigs); err != nil {
+		return errors.Wrap(err, "failed to batch deploy data ZDBs")
+	}
+
+	// Load deployed metadata ZDBs
+	metaDeployments := make([]*workloads.ZDB, len(metaNodeIDs))
+	for i, nodeID := range metaNodeIDs {
+		ns := fmt.Sprintf("meta_%d", nodeID)
+		dlName := fmt.Sprintf("meta_%d", nodeID)
+		
+		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, ns, dlName)
+		if err != nil {
+			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", ns, nodeID)
 		}
 
-		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, zdb.Name, dl.Name)
+		metaDeployments[i] = &resZDB
+		fmt.Printf("Deployed metadata ZDB '%s' on node %d\n", ns, nodeID)
+	}
+
+	// Load deployed data ZDBs
+	dataDeployments := make([]*workloads.ZDB, len(dataNodeIDs))
+	for i, nodeID := range dataNodeIDs {
+		ns := fmt.Sprintf("data_%d", nodeID)
+		dlName := fmt.Sprintf("data_%d", nodeID)
+		
+		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, ns, dlName)
 		if err != nil {
-			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", zdb.Name, nodeID)
+			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", ns, nodeID)
 		}
 
 		dataDeployments[i] = &resZDB
