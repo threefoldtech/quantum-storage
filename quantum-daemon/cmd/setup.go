@@ -309,15 +309,7 @@ func downloadBinaries() error {
 		}
 	}
 
-	// Download hook script
-	hookURL := "https://raw.githubusercontent.com/threefoldtech/quantum-storage/master/lib/zdb-hook.sh"
-	hookDest := "/usr/local/bin/zdb-hook.sh"
-	fmt.Println("Downloading zdb hook script...")
-	cmd := exec.Command("wget", "-O", hookDest, hookURL)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to download hook script: %w", err)
-	}
-	return os.Chmod(hookDest, 0755)
+	return nil
 }
 
 func createDirectories() error {
