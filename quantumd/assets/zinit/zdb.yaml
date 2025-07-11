@@ -4,7 +4,7 @@ exec: |
     --data /data/data
     --logfile /var/log/zdb.log
     --datasize 67108864
-    --hook "quantumd hook" \
+    --hook /usr/local/bin/quantumd-hook \
     --rotate 900
 shutdown_timeout: 60
 after: [zstor]
