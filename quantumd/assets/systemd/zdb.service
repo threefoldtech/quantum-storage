@@ -11,7 +11,7 @@ ExecStart=/usr/local/bin/zdb \
     --data /data/data \
     --logfile /var/log/zdb.log \
     --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
+    --hook "quantumd hook" \
     --rotate 900
 Restart=always
 RestartSec=5

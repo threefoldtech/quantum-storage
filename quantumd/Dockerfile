@@ -7,8 +7,9 @@ RUN wget -O /sbin/zinit https://github.com/threefoldtech/zinit/releases/download
 # Install redis-cli
 RUN apk add --no-cache redis
 
-# Copy pre-built binary
+# Copy pre-built binary and hook symlink
 COPY quantumd /usr/local/bin/quantumd
+COPY quantumd-hook /usr/local/bin/quantumd-hook
 
 # Create required directories
 RUN mkdir -p /data /mnt/qsfs /var/log /etc/zinit
