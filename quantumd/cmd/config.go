@@ -19,6 +19,7 @@ type Config struct {
 	ExpectedShards int           `yaml:"expected_shards"`
 	ZdbRootPath    string        `yaml:"zdb_root_path"`
 	QsfsMountpoint string        `yaml:"qsfs_mountpoint"`
+	CachePath      string        `yaml:"cache_path"`
 	RetryInterval  time.Duration `yaml:"retry_interval"`
 	DatabasePath   string        `yaml:"database_path"`
 
@@ -26,7 +27,6 @@ type Config struct {
 	MetaBackends []Backend `yaml:"-"`
 	DataBackends []Backend `yaml:"-"`
 }
-
 type Backend struct {
 	Address   string
 	Namespace string

@@ -55,13 +55,7 @@ func setupQSFS() error {
 
 	fmt.Printf("Detected init system: %s\n", initSystem)
 
-	// Load configuration
-	configPath := "/etc/quantumd/config.yaml"
-	if localMode {
-		configPath = "./config.local.yaml" // Or some other local path
-		// You might want to generate a default local config here if it doesn’t exist
-	}
-	cfg, err := LoadConfig(configPath)
+	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -77,8 +71,14 @@ func setupQSFS() error {
 	}
 
 	// Generate zstor config
-	if err := generateZstorConfig(cfg); err != nil {
-		return fmt.Errorf("failed to generate zstor config: %w", err)
+	if localMode {
+		if err := generateLocalZstorConfig(); err != nil {
+			return fmt.Errorf("failed to generate local zstor config: %w", err)
+		}
+	} else {
+		if err := generateZstorConfig(cfg); err != nil {
+			return fmt.Errorf("failed to generate zstor config: %w", err)
+		}
 	}
 
 	if localMode {
@@ -128,6 +128,80 @@ func generateZstorConfig(cfg *Config) error {
 	fmt.Println("Generating zstor config...")
 	// Pass an empty serviceType because zstor.conf.template is in the root of the templates directory
 	return renderTemplate("/etc/zstor.toml", "zstor.conf.template", "", cfg)
+}
+
+func generateLocalZstorConfig() error {
+	fmt.Println("Generating local zstor config...")
+	config := `minimal_shards = 2
+expected_shards = 4
+redundant_groups = 0
+redundant_nodes = 0
+root = "/"
+zdbfs_mountpoint = "/mnt/"
+socket = "/tmp/zstor.sock"
+prometheus_port = 9200
+zdb_data_dir_path = "/data/data/zdbfs-data/"
+max_zdb_data_dir_size = 64
+
+[compression]
+algorithm = "snappy"
+
+[meta]
+type = "zdb"
+
+[meta.config]
+prefix = "zstor-meta"
+
+[encryption]
+algorithm = "AES"
+key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
+
+[meta.config.encryption]
+algorithm = "AES"
+key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9901"
+namespace = "meta1"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9902"
+namespace = "meta2"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9903"
+namespace = "meta3"
+password = "zdbpassword"
+
+[[meta.config.backends]]
+address = "127.0.0.1:9904"
+namespace = "meta4"
+password = "zdbpassword"
+
+[[groups]]
+[[groups.backends]]
+address = "127.0.0.1:9901"
+namespace = "data1"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9902"
+namespace = "data2"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9903"
+namespace = "data3"
+password = "zdbpassword"
+
+[[groups.backends]]
+address = "127.0.0.1:9904"
+namespace = "data4"
+password = "zdbpassword"
+`
+	return os.WriteFile("/etc/zstor.toml", []byte(config), 0644)
 }
 
 func setupLocalBackends(initSystem string) error {

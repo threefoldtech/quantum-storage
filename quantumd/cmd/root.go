@@ -33,9 +33,33 @@ var rootCmd = &cobra.Command{
 
 		log.Println("Quantum Daemon starting...")
 
-		cfg, err := LoadConfig(ConfigFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+		var cfg *Config
+		var err error
+
+		if localMode {
+			// In local mode, config is optional
+			if _, err := os.Stat(ConfigFile); err == nil {
+				cfg, err = LoadConfig(ConfigFile)
+				if err != nil {
+					return fmt.Errorf("failed to load config: %w", err)
+				}
+			} else {
+				// Create a default config for local mode
+				cfg = &Config{
+					QsfsMountpoint: "/mnt/qsfs",
+					ZdbRootPath:    "/var/lib/zdb",
+					CachePath:      "/var/cache/zdbfs",
+					ZdbPassword:    "zdbpassword",
+					MinShards:      2,
+					ExpectedShards: 4,
+				}
+			}
+		} else {
+			// In remote mode, config is required
+			cfg, err = LoadConfig(ConfigFile)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 		}
 
 		handler, err := newHookHandler()
@@ -67,6 +91,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "/etc/quantumd/config.yaml", "Path to YAML config file")
+	rootCmd.PersistentFlags().BoolVarP(&localMode, "local", "l", false, "Enable local mode")
 }
 
 var (
