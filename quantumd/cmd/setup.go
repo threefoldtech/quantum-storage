@@ -99,10 +99,16 @@ func setupQSFS() error {
 	}
 }
 
-func renderTemplate(destPath, templateName string, cfg *Config) error {
-	templateContent, err := TemplateAssets.ReadFile("assets/templates/" + templateName)
+func renderTemplate(destPath, templateName, serviceType string, cfg *Config) error {
+	var templatePath string
+	if serviceType == "" {
+		templatePath = filepath.Join("assets/templates", templateName)
+	} else {
+		templatePath = filepath.Join("assets/templates", serviceType, templateName)
+	}
+	templateContent, err := TemplateAssets.ReadFile(templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to read embedded template %s: %w", templateName, err)
+		return fmt.Errorf("failed to read embedded template %s: %w", templatePath, err)
 	}
 
 	tmpl, err := template.New(templateName).Parse(string(templateContent))
@@ -120,7 +126,8 @@ func renderTemplate(destPath, templateName string, cfg *Config) error {
 
 func generateZstorConfig(cfg *Config) error {
 	fmt.Println("Generating zstor config...")
-	return renderTemplate("/etc/zstor.toml", "zstor.conf.template", cfg)
+	// Pass an empty serviceType because zstor.conf.template is in the root of the templates directory
+	return renderTemplate("/etc/zstor.toml", "zstor.conf.template", "", cfg)
 }
 
 func setupLocalBackends(initSystem string) error {
@@ -305,25 +312,16 @@ func createDirectories(cfg *Config) error {
 
 func setupSystemdServices(cfg *Config) error {
 	// Template-based services
-	templatedServices := []string{"zdb", "zstor", "zdbfs"}
+	templatedServices := []string{"zdb", "zstor", "zdbfs", "quantumd"}
 	for _, name := range templatedServices {
-		if err := renderTemplate(fmt.Sprintf("/etc/systemd/system/%s.service", name), fmt.Sprintf("%s.service.template", name), cfg); err != nil {
-			return err
-		}
-	}
-
-	// Static services
-	staticServices := []string{"quantumd"}
-	for _, name := range staticServices {
-		content, err := SystemdAssets.ReadFile("assets/systemd/" + name + ".service")
+		err := renderTemplate(
+			fmt.Sprintf("/etc/systemd/system/%s.service", name),
+			fmt.Sprintf("%s.service.template", name),
+			"systemd",
+			cfg,
+		)
 		if err != nil {
-			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
-		}
-
-		path := filepath.Join("/etc/systemd/system", name+".service")
-		fmt.Printf("Creating systemd service %s...\n", name)
-		if err := os.WriteFile(path, content, 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
+			return err
 		}
 	}
 
@@ -345,8 +343,6 @@ func setupSystemdServices(cfg *Config) error {
 }
 
 func setupZinitServices(cfg *Config) error {
-	// This function would need to be updated to use templating for zinit as well.
-	// For now, it’s left as an exercise for the reader.
 	services := []string{"zstor", "zdb", "zdbfs", "quantumd"}
 	zinitDir := "/etc/zinit"
 
@@ -355,16 +351,14 @@ func setupZinitServices(cfg *Config) error {
 	}
 
 	for _, name := range services {
-		// Placeholder for zinit templating
-		content, err := SystemdAssets.ReadFile("assets/zinit/" + name + ".yaml")
+		err := renderTemplate(
+			filepath.Join(zinitDir, name+".yaml"),
+			name+".yaml.template",
+			"zinit",
+			cfg,
+		)
 		if err != nil {
-			return fmt.Errorf("failed to read embedded service file %s: %w", name, err)
-		}
-
-		path := filepath.Join(zinitDir, name+".yaml")
-		fmt.Printf("Creating zinit service %s...\n", name)
-		if err := os.WriteFile(path, content, 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
+			return err
 		}
 	}
 

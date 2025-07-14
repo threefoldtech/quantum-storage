@@ -1,0 +1,22 @@
+[Unit]
+Wants=network.target zstor.service quantumd.service
+After=network.target zstor.service quantumd.service
+
+[Service]
+ProtectHome=true
+ProtectSystem=true
+ReadWritePaths={{.ZdbRootPath}} /var/log
+ExecStart=/usr/local/bin/zdb \
+    --index {{.ZdbRootPath}}/index \
+    --data {{.ZdbRootPath}}/data \
+    --logfile /var/log/zdb.log \
+    --datasize 67108864 \
+    --hook /usr/local/bin/quantumd-hook \
+    --rotate 900
+Restart=always
+RestartSec=5
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
+

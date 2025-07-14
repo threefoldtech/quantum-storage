@@ -1,5 +1,5 @@
 exec: |
   /usr/local/bin/zdbfs
-    /mnt/qsfs
+    {{.QsfsMountpoint}}
     -o autons
 after: [zdb]
