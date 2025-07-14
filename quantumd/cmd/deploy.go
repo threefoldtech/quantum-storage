@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
-	"gopkg.in/yaml.v3"
 )
 
 func parseNodeIDs(input string) ([]uint32, error) {
@@ -35,36 +34,38 @@ var deployCmd = &cobra.Command{
 Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.
 Use --destroy to remove existing deployments.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		cfg, err := LoadConfig(ConfigFile)
+		if err != nil {
+			fmt.Printf("Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
 		if destroyDeployments {
-			if err := destroyBackends(); err != nil {
+			if err := destroyBackends(cfg); err != nil {
 				fmt.Printf("Error destroying deployments: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		}
-		if err := loadConfig(); err != nil {
-			fmt.Printf("Error loading config: %v\n", err)
-			os.Exit(1)
-		}
 
-		if len(AppConfig.MetaNodes) == 0 {
+		if len(cfg.MetaNodes) == 0 {
 			fmt.Println("Error: metadata nodes are required in config")
 			os.Exit(1)
 		}
-		if len(AppConfig.DataNodes) == 0 {
+		if len(cfg.DataNodes) == 0 {
 			fmt.Println("Error: data nodes are required in config")
 			os.Exit(1)
 		}
-		if AppConfig.ZDBPass == "" {
+		if cfg.ZdbPassword == "" {
 			fmt.Println("Error: ZDB password is required in config")
 			os.Exit(1)
 		}
-		if strings.ContainsAny(AppConfig.ZDBPass, "- ") {
+		if strings.ContainsAny(cfg.ZdbPassword, "- ") {
 			fmt.Println("Error: ZDB password cannot contain dashes or spaces")
 			os.Exit(1)
 		}
 
-		if err := deployBackends(AppConfig.MetaNodes, AppConfig.DataNodes); err != nil {
+		if err := deployBackends(cfg); err != nil {
 			fmt.Printf("Error deploying backends: %v\n", err)
 			os.Exit(1)
 		}
@@ -79,21 +80,17 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-func destroyBackends() error {
-	if err := loadConfig(); err != nil {
-		return err
-	}
-
+func destroyBackends(cfg *Config) error {
 	relay := "wss://relay.grid.tf"
 	network := Network
-	if AppConfig.Network != "" {
-		network = AppConfig.Network
+	if cfg.Network != "" {
+		network = cfg.Network
 	}
 	if network != "main" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
 	}
 
-	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic,
+	grid, err := deployer.NewTFPluginClient(cfg.Mnemonic,
 		deployer.WithRelayURL(relay),
 		deployer.WithNetwork(network),
 		deployer.WithRMBTimeout(100))
@@ -102,7 +99,7 @@ func destroyBackends() error {
 	}
 
 	// Destroy metadata deployments
-	for _, nodeID := range AppConfig.MetaNodes {
+	for _, nodeID := range cfg.MetaNodes {
 		projectName := fmt.Sprintf("meta_%d", nodeID)
 		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy metadata deployment on node %d", nodeID)
@@ -111,7 +108,7 @@ func destroyBackends() error {
 	}
 
 	// Destroy data deployments
-	for _, nodeID := range AppConfig.DataNodes {
+	for _, nodeID := range cfg.DataNodes {
 		projectName := fmt.Sprintf("data_%d", nodeID)
 		if err := grid.CancelByProjectName(projectName); err != nil {
 			return errors.Wrapf(err, "failed to destroy data deployment on node %d", nodeID)
@@ -122,74 +119,39 @@ func destroyBackends() error {
 	return nil
 }
 
-func loadConfig() error {
-	if ConfigFile != "" {
-		data, err := os.ReadFile(ConfigFile)
-		if err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
-		}
-		if err := yaml.Unmarshal(data, &AppConfig); err != nil {
-			return fmt.Errorf("failed to parse config file: %w", err)
-		}
-	}
-
-	// Set defaults
-	if AppConfig.RetryInterval == 0 {
-		AppConfig.RetryInterval = defaultRetryInterval
-	}
-
-	// Override with ENV vars if set
-	if env := os.Getenv("NETWORK"); env != "" {
-		AppConfig.Network = env
-	}
-	if env := os.Getenv("MNEMONIC"); env != "" {
-		AppConfig.Mnemonic = env
-	}
-
-	if AppConfig.Mnemonic == "" {
-		return fmt.Errorf("mnemonic is required for deployment (provide via MNEMONIC env var or config file)")
-	}
-
-	return nil
-}
-
-func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
-	if err := loadConfig(); err != nil {
-		return err
-	}
-
-	if len(AppConfig.MetaNodes) == 0 {
+func deployBackends(cfg *Config) error {
+	if len(cfg.MetaNodes) == 0 {
 		return fmt.Errorf("metadata nodes are required in config")
 	}
-	if len(AppConfig.DataNodes) == 0 {
+	if len(cfg.DataNodes) == 0 {
 		return fmt.Errorf("data nodes are required in config")
 	}
-	if AppConfig.ZDBPass == "" {
+	if cfg.ZdbPassword == "" {
 		return fmt.Errorf("ZDB password is required in config")
 	}
 	// Create grid client
 	relay := "wss://relay.grid.tf"
 	network := Network
-	if AppConfig.Network != "" {
-		network = AppConfig.Network
+	if cfg.Network != "" {
+		network = cfg.Network
 	}
 	if network != "main" {
 		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
 	}
-	grid, err := deployer.NewTFPluginClient(AppConfig.Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network))
+	grid, err := deployer.NewTFPluginClient(cfg.Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network))
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
 	// Prepare metadata deployments
 	var metaDeploymentConfigs []*workloads.Deployment
-	for _, nodeID := range metaNodeIDs {
+	for _, nodeID := range cfg.MetaNodes {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    AppConfig.ZDBPass,
+			Password:    cfg.ZdbPassword,
 			Public:      false,
-			SizeGB:      uint64(AppConfig.MetaSizeGB),
+			SizeGB:      uint64(cfg.MetaSizeGb),
 			Description: "QSFS metadata namespace",
 			Mode:        workloads.ZDBModeUser,
 		}
@@ -200,13 +162,13 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 
 	// Prepare data deployments
 	var dataDeploymentConfigs []*workloads.Deployment
-	for _, nodeID := range dataNodeIDs {
+	for _, nodeID := range cfg.DataNodes {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    AppConfig.ZDBPass,
+			Password:    cfg.ZdbPassword,
 			Public:      false,
-			SizeGB:      uint64(AppConfig.DataSizeGB),
+			SizeGB:      uint64(cfg.DataSizeGb),
 			Description: "QSFS data namespace",
 			Mode:        workloads.ZDBModeSeq,
 		}
@@ -228,8 +190,8 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	}
 
 	// Load deployed metadata ZDBs
-	metaDeployments := make([]*workloads.ZDB, len(metaNodeIDs))
-	for i, nodeID := range metaNodeIDs {
+	metaDeployments := make([]*workloads.ZDB, len(cfg.MetaNodes))
+	for i, nodeID := range cfg.MetaNodes {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		dlName := fmt.Sprintf("meta_%d", nodeID)
 
@@ -243,8 +205,8 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	}
 
 	// Load deployed data ZDBs
-	dataDeployments := make([]*workloads.ZDB, len(dataNodeIDs))
-	for i, nodeID := range dataNodeIDs {
+	dataDeployments := make([]*workloads.ZDB, len(cfg.DataNodes))
+	for i, nodeID := range cfg.DataNodes {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		dlName := fmt.Sprintf("data_%d", nodeID)
 
@@ -258,23 +220,23 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	}
 
 	// Generate config file with all deployed ZDBs
-	if err := generateRemoteConfig(metaDeployments, dataDeployments); err != nil {
+	if err := generateRemoteConfig(cfg, metaDeployments, dataDeployments); err != nil {
 		return errors.Wrap(err, "failed to generate config")
 	}
 
 	return nil
 }
 
-func generateRemoteConfig(meta, data []*workloads.ZDB) error {
-	config := fmt.Sprintf(`minimal_shards = 2
-expected_shards = 4
+func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
+	config := fmt.Sprintf(`minimal_shards = %d
+expected_shards = %d
 redundant_groups = 0
 redundant_nodes = 0
 root = "/"
-zdbfs_mountpoint = "/mnt/qsfs"
+zdbfs_mountpoint = "%s"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
-zdb_data_dir_path = "/data/data/zdbfs-data/"
+zdb_data_dir_path = "%s/data/zdbfs-data/"
 max_zdb_data_dir_size = 2560
 
 [compression]
@@ -292,14 +254,14 @@ key = "%s"
 
 [meta.config.encryption]
 algorithm = "AES"
-key = "%s"`, randomKey(), randomKey())
+key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, randomKey(), randomKey())
 
 	// Add meta backends
 	config += "\n\n[[meta.config.backends]]\n"
 	for _, zdb := range meta {
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
 		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
-		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
+		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.ZdbPassword)
 		if zdb != meta[len(meta)-1] {
 			config += "[[meta.config.backends]]\n"
 		}
@@ -311,7 +273,7 @@ key = "%s"`, randomKey(), randomKey())
 		config += fmt.Sprintf("[[groups.backends]]\n")
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
 		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
-		config += fmt.Sprintf("password = \"%s\"\n\n", AppConfig.ZDBPass)
+		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.ZdbPassword)
 	}
 
 	// Write config file

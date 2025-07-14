@@ -9,8 +9,8 @@ import (
 	"github.com/threefoldtech/quantum-daemon/cmd"
 )
 
-//go:embed assets/systemd/* assets/zinit/*
-var serviceFiles embed.FS
+//go:embed all:assets
+var assets embed.FS
 
 func main() {
 	// Get the base name of the command used to execute the program
@@ -26,6 +26,6 @@ func main() {
 		os.Args = append([]string{os.Args[0], "hook"}, os.Args[1:]...)
 	}
 
-	cmd.ServiceFiles = serviceFiles
+	cmd.SetAssets(assets, assets)
 	cmd.Execute()
 }

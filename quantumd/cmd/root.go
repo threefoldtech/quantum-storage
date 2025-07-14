@@ -3,7 +3,6 @@ package cmd
 import (
 	"bufio"
 	"database/sql"
-	"embed"
 	"fmt"
 	"log"
 	"net"
@@ -34,18 +33,23 @@ var rootCmd = &cobra.Command{
 
 		log.Println("Quantum Daemon starting...")
 
+		cfg, err := LoadConfig(ConfigFile)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
 		handler, err := newHookHandler()
 		if err != nil {
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
 		}
 
-		dbPath := AppConfig.DatabasePath
+		dbPath := cfg.DatabasePath
 		if dbPath == "" {
 			dataDir := filepath.Dir(handler.zstorData)
 			dbPath = filepath.Join(dataDir, "uploaded_files.db")
 		}
 
-		retryManager, err := newRetryManager(handler, AppConfig.RetryInterval, dbPath)
+		retryManager, err := newRetryManager(handler, cfg.RetryInterval, dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize retry manager: %w", err)
 		}
@@ -62,24 +66,11 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "", "Path to YAML config file")
-}
-
-type Config struct {
-	Network       string        `yaml:"network"`
-	Mnemonic      string        `yaml:"mnemonic"`
-	MetaNodes     []uint32      `yaml:"meta_nodes"`
-	DataNodes     []uint32      `yaml:"data_nodes"`
-	ZDBPass       string        `yaml:"zdb_password"`
-	MetaSizeGB    int           `yaml:"meta_size_gb"`
-	DataSizeGB    int           `yaml:"data_size_gb"`
-	RetryInterval time.Duration `yaml:"retry_interval"`
-	DatabasePath  string        `yaml:"database_path"`
+	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "/etc/quantumd/config.yaml", "Path to YAML config file")
 }
 
 var (
 	LocalMode     bool
-	ServiceFiles  embed.FS
 	Mnemonic      string
 	ConfigOutPath string
 	Network       = func() string {
@@ -89,7 +80,6 @@ var (
 		return "dev" // default to devnet
 	}()
 	ConfigFile string
-	AppConfig  Config
 )
 
 func Execute() {
@@ -806,3 +796,6 @@ last_retry_run_time %d
 	curlCmd.Stdin = strings.NewReader(metrics)
 	curlCmd.Run()
 }
+
+
+const socketPath = "/tmp/zdb-hook.sock"
