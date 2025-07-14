@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"bufio"
+	"database/sql"
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +39,13 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
 		}
 
-		retryManager, err := newRetryManager(handler, AppConfig.RetryInterval)
+		dbPath := AppConfig.DatabasePath
+		if dbPath == "" {
+			dataDir := filepath.Dir(handler.zstorData)
+			dbPath = filepath.Join(dataDir, "uploaded_files.db")
+		}
+
+		retryManager, err := newRetryManager(handler, AppConfig.RetryInterval, dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize retry manager: %w", err)
 		}
@@ -67,6 +74,7 @@ type Config struct {
 	MetaSizeGB    int           `yaml:"meta_size_gb"`
 	DataSizeGB    int           `yaml:"data_size_gb"`
 	RetryInterval time.Duration `yaml:"retry_interval"`
+	DatabasePath  string        `yaml:"database_path"`
 }
 
 var (
@@ -239,7 +247,7 @@ func (h *hookHandler) runZstor(args ...string) error {
 }
 
 func (h *hookHandler) handleClose() error {
-	namespaces, err := ioutil.ReadDir(h.zstorData)
+	namespaces, err := os.ReadDir(h.zstorData)
 	if err != nil {
 		return fmt.Errorf("could not read zstor data dir %s: %w", h.zstorData, err)
 	}
@@ -255,7 +263,7 @@ func (h *hookHandler) handleClose() error {
 		dataDir := filepath.Join(h.zstorData, nsName)
 
 		// Find the last active file number
-		indexFiles, err := ioutil.ReadDir(indexDir)
+		indexFiles, err := os.ReadDir(indexDir)
 		if err != nil {
 			log.Printf("Could not read index dir %s: %v. Skipping.", indexDir, err)
 			continue
@@ -313,7 +321,7 @@ func (h *hookHandler) handleJumpIndex(indexPath string, dirtyIndices []string) e
 	}
 
 	// Create a temporary directory to stage the files for upload
-	tmpDir, err := ioutil.TempDir("/tmp", "zdb.hook.tmp.XXXXXXXX")
+	tmpDir, err := os.MkdirTemp("/tmp", "zdb.hook.tmp.XXXXXXXX")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -361,31 +369,214 @@ func (h *hookHandler) handleMissingData(dataPath string) error {
 
 // copyFile utility
 func copyFile(src, dst string) error {
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(dst, data, 0644)
+	return os.WriteFile(dst, data, 0644)
+}
+
+// uploadTracker handles tracking of uploaded files using SQLite
+type uploadTracker struct {
+	db *sql.DB
 }
 
 // retryManager handles periodic scanning and retrying of failed uploads
 type retryManager struct {
-	handler    *hookHandler
-	interval   time.Duration
-	uploadedDB string
+	handler       *hookHandler
+	interval      time.Duration
+	uploadTracker *uploadTracker
 }
 
-func newRetryManager(handler *hookHandler, interval time.Duration) (*retryManager, error) {
-	dataDir := filepath.Dir(handler.zstorData)
-	uploadedDB := filepath.Join(dataDir, uploadedDataFiles)
+func (ut *uploadTracker) MigrateFromTextFile(textFilePath string) error {
+	if _, err := os.Stat(textFilePath); os.IsNotExist(err) {
+		// No text file to migrate
+		return nil
+	}
 
-	// Create uploaded data files tracking if it doesn't exist
-	if _, err := os.Stat(uploadedDB); os.IsNotExist(err) {
-		file, err := os.Create(uploadedDB)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create uploaded files tracking: %w", err)
+	content, err := os.ReadFile(textFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read text file: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	migrated := 0
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
-		file.Close()
+
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+
+		filePath := parts[0]
+		hash := parts[1]
+
+		// Get file size if file exists
+		var fileSize int64
+		if info, err := os.Stat(filePath); err == nil {
+			fileSize = info.Size()
+		}
+
+		// Insert into database
+		if err := ut.MarkUploaded(filePath, hash, fileSize); err != nil {
+			log.Printf("Failed to migrate %s: %v", filePath, err)
+			continue
+		}
+		migrated++
+	}
+
+	if migrated > 0 {
+		log.Printf("Migrated %d entries from text file to SQLite", migrated)
+
+		// Optionally backup the old text file
+		backupPath := textFilePath + ".backup"
+		if err := os.Rename(textFilePath, backupPath); err != nil {
+			log.Printf("Failed to backup text file: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func newUploadTracker(dbPath string) (*uploadTracker, error) {
+	// Ensure directory exists
+	dbDir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
+	}
+
+	// Open or create database
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Create table if not exists
+	schema := `
+	CREATE TABLE IF NOT EXISTS uploaded_files (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		file_path TEXT NOT NULL UNIQUE,
+		hash TEXT NOT NULL,
+		file_size INTEGER,
+		uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_file_path ON uploaded_files(file_path);
+	CREATE INDEX IF NOT EXISTS idx_hash ON uploaded_files(hash);
+	`
+
+	if _, err := db.Exec(schema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create database schema: %w", err)
+	}
+
+	return &uploadTracker{db: db}, nil
+}
+
+func (ut *uploadTracker) Close() error {
+	if ut.db != nil {
+		return ut.db.Close()
+	}
+	return nil
+}
+
+func (ut *uploadTracker) IsUploaded(filePath string) (bool, error) {
+	var count int
+	err := ut.db.QueryRow(
+		"SELECT COUNT(*) FROM uploaded_files WHERE file_path = ?",
+		filePath,
+	).Scan(&count)
+
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (ut *uploadTracker) MarkUploaded(filePath, hash string, fileSize int64) error {
+	_, err := ut.db.Exec(`
+		INSERT OR REPLACE INTO uploaded_files (file_path, hash, file_size, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+	`, filePath, hash, fileSize)
+	return err
+}
+
+func (ut *uploadTracker) GetHash(filePath string) (string, error) {
+	var hash string
+	err := ut.db.QueryRow(
+		"SELECT hash FROM uploaded_files WHERE file_path = ?",
+		filePath,
+	).Scan(&hash)
+
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return hash, err
+}
+
+func (ut *uploadTracker) Remove(filePath string) error {
+	_, err := ut.db.Exec("DELETE FROM uploaded_files WHERE file_path = ?", filePath)
+	return err
+}
+
+func (ut *uploadTracker) Count() (int64, error) {
+	var count int64
+	err := ut.db.QueryRow("SELECT COUNT(*) FROM uploaded_files").Scan(&count)
+	return count, err
+}
+
+func (ut *uploadTracker) CleanupMissingFiles() (int64, error) {
+	// Find all files in database that no longer exist
+	rows, err := ut.db.Query("SELECT file_path FROM uploaded_files")
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var missingFiles []string
+	for rows.Next() {
+		var filePath string
+		if err := rows.Scan(&filePath); err != nil {
+			continue
+		}
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			missingFiles = append(missingFiles, filePath)
+		}
+	}
+
+	// Remove missing files from database
+	deleted := int64(0)
+	for _, filePath := range missingFiles {
+		if err := ut.Remove(filePath); err == nil {
+			deleted++
+		}
+	}
+
+	return deleted, nil
+}
+
+func (ut *uploadTracker) Vacuum() error {
+	_, err := ut.db.Exec("VACUUM")
+	return err
+}
+
+func newRetryManager(handler *hookHandler, interval time.Duration, dbPath string) (*retryManager, error) {
+	uploadTracker, err := newUploadTracker(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create upload tracker: %w", err)
+	}
+
+	// Migrate from old text file if it exists
+	dataDir := filepath.Dir(handler.zstorData)
+	textFilePath := filepath.Join(dataDir, uploadedDataFiles)
+	if err := uploadTracker.MigrateFromTextFile(textFilePath); err != nil {
+		log.Printf("Failed to migrate from text file: %v", err)
+		// Continue anyway, this is not fatal
 	}
 
 	if interval <= 0 {
@@ -393,14 +584,15 @@ func newRetryManager(handler *hookHandler, interval time.Duration) (*retryManage
 	}
 
 	return &retryManager{
-		handler:    handler,
-		interval:   interval,
-		uploadedDB: uploadedDB,
+		handler:       handler,
+		interval:      interval,
+		uploadTracker: uploadTracker,
 	}, nil
 }
 
 func (rm *retryManager) start() {
 	log.Println("Starting retry manager...")
+	defer rm.uploadTracker.Close()
 
 	for {
 		rm.runRetryCycle()
@@ -412,14 +604,14 @@ func (rm *retryManager) runRetryCycle() {
 	log.Println("Running retry cycle...")
 
 	// Process each namespace
-	namespaces, err := ioutil.ReadDir(rm.handler.zstorData)
+	namespaces, err := os.ReadDir(rm.handler.zstorData)
 	if err != nil {
 		log.Printf("Failed to read zstor data dir: %v", err)
 		return
 	}
 
 	// Create temp directory for index files
-	tmpDir, err := ioutil.TempDir("/tmp", "zdb.retry.tmp.")
+	tmpDir, err := os.MkdirTemp("/tmp", "zdb.retry.tmp.")
 	if err != nil {
 		log.Printf("Failed to create temp dir: %v", err)
 		return
@@ -492,7 +684,12 @@ func (rm *retryManager) processFiles(namespace, fileType, tmpDir string) {
 			rm.checkAndUploadFile(tmpPath)
 		} else {
 			// Check if data file was already uploaded
-			if !rm.isDataFileUploaded(file) {
+			uploaded, err := rm.uploadTracker.IsUploaded(file)
+			if err != nil {
+				log.Printf("Failed to check upload status for %s: %v", file, err)
+				continue
+			}
+			if !uploaded {
 				rm.checkAndUploadFile(file)
 			}
 		}
@@ -581,29 +778,15 @@ func (rm *retryManager) getLocalHash(file string) string {
 	return ""
 }
 
-func (rm *retryManager) isDataFileUploaded(file string) bool {
-	if _, err := os.Stat(rm.uploadedDB); os.IsNotExist(err) {
-		return false
-	}
-
-	content, err := ioutil.ReadFile(rm.uploadedDB)
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(string(content), file)
-}
 func (rm *retryManager) markDataFileUploaded(file, hash string) {
-	// Append to uploaded files tracking
-	line := fmt.Sprintf("%s %s\n", file, hash)
-	if !rm.isDataFileUploaded(file) {
-		f, err := os.OpenFile(rm.uploadedDB, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-		if err != nil {
-			log.Printf("Failed to mark file as uploaded: %v", err)
-			return
-		}
-		defer f.Close()
-		f.WriteString(line)
+	fileInfo, err := os.Stat(file)
+	if err != nil {
+		log.Printf("Failed to get file info for %s: %v", file, err)
+		return
+	}
+
+	if err := rm.uploadTracker.MarkUploaded(file, hash, fileInfo.Size()); err != nil {
+		log.Printf("Failed to mark file as uploaded: %v", err)
 	}
 }
 

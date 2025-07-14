@@ -69,12 +69,15 @@ quantumd
 This will:
 - Listen for hook events from zdb (close, ready, namespace updates, etc.)
 - Periodically scan for failed uploads and retry them
+- Track uploaded files in SQLite database for robust retry handling
 - Send metrics to Prometheus pushgateway if available
+- Automatically migrate from legacy text file tracking
 
-The retry interval can be configured in the config file:
+Configuration options:
 
 ```yaml
 retry_interval: 10m  # Default is 10 minutes
+database_path: "/data/uploaded_files.db"  # SQLite database location
 ```
 
 Or set via environment variable:

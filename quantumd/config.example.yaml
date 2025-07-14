@@ -11,3 +11,4 @@ data_size_gb: 10 # Size in GB for data ZDBs
 
 # Daemon configuration
 retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)
+database_path: "/data/uploaded_files.db" # Path to SQLite database for tracking uploads
