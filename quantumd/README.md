@@ -57,3 +57,27 @@ quantumd setup
 ```
 
 That's it. Once the command finishes, your QSFS should be ready.
+
+### Daemon Mode
+
+The daemon mode runs continuously to handle hook events from zdb and periodically retry failed uploads:
+
+```
+quantumd
+```
+
+This will:
+- Listen for hook events from zdb (close, ready, namespace updates, etc.)
+- Periodically scan for failed uploads and retry them
+- Send metrics to Prometheus pushgateway if available
+
+The retry interval can be configured in the config file:
+
+```yaml
+retry_interval: 10m  # Default is 10 minutes
+```
+
+Or set via environment variable:
+```bash
+export RETRY_INTERVAL=5m
+```

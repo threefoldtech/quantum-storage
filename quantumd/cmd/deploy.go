@@ -133,6 +133,11 @@ func loadConfig() error {
 		}
 	}
 
+	// Set defaults
+	if AppConfig.RetryInterval == 0 {
+		AppConfig.RetryInterval = defaultRetryInterval
+	}
+
 	// Override with ENV vars if set
 	if env := os.Getenv("NETWORK"); env != "" {
 		AppConfig.Network = env
@@ -227,7 +232,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	for i, nodeID := range metaNodeIDs {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		dlName := fmt.Sprintf("meta_%d", nodeID)
-		
+
 		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, ns, dlName)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", ns, nodeID)
@@ -242,7 +247,7 @@ func deployBackends(metaNodeIDs []uint32, dataNodeIDs []uint32) error {
 	for i, nodeID := range dataNodeIDs {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		dlName := fmt.Sprintf("data_%d", nodeID)
-		
+
 		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, ns, dlName)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", ns, nodeID)

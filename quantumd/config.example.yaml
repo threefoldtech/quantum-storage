@@ -8,3 +8,6 @@ data_nodes: [11, 13, 24, 2011] # List of node IDs for data ZDBs
 zdb_password: "" # Password for ZDB namespaces
 meta_size_gb: 1 # Size in GB for metadata ZDBs
 data_size_gb: 10 # Size in GB for data ZDBs
+
+# Daemon configuration
+retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)

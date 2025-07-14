@@ -10,11 +10,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+)
+
+const (
+	defaultRetryInterval = 10 * time.Minute
+	uploadedDataFiles    = "uploaded_data_files"
 )
 
 var rootCmd = &cobra.Command{
@@ -25,8 +31,6 @@ var rootCmd = &cobra.Command{
 		// This is the main daemon entry point.
 		// It runs when no subcommand is specified.
 
-		// For now, we just start the hook listener.
-		// Other daemon activities (like periodic retries) can be added here.
 		log.Println("Quantum Daemon starting...")
 
 		handler, err := newHookHandler()
@@ -34,11 +38,18 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
 		}
 
-		// Run the hook listener in a goroutine so it doesn't block
+		retryManager, err := newRetryManager(handler, AppConfig.RetryInterval)
+		if err != nil {
+			return fmt.Errorf("failed to initialize retry manager: %w", err)
+		}
+
+		// Run the hook listener in a goroutine
 		go handler.listenAndServeHooks()
 
-		// The main goroutine can perform other tasks or simply wait.
-		// For now, we'll just wait indefinitely.
+		// Run the retry manager in a goroutine
+		go retryManager.start()
+
+		// Wait indefinitely
 		select {}
 	},
 }
@@ -48,13 +59,14 @@ func init() {
 }
 
 type Config struct {
-	Network    string   `yaml:"network"`
-	Mnemonic   string   `yaml:"mnemonic"`
-	MetaNodes  []uint32 `yaml:"meta_nodes"`
-	DataNodes  []uint32 `yaml:"data_nodes"`
-	ZDBPass    string   `yaml:"zdb_password"`
-	MetaSizeGB int      `yaml:"meta_size_gb"`
-	DataSizeGB int      `yaml:"data_size_gb"`
+	Network       string        `yaml:"network"`
+	Mnemonic      string        `yaml:"mnemonic"`
+	MetaNodes     []uint32      `yaml:"meta_nodes"`
+	DataNodes     []uint32      `yaml:"data_nodes"`
+	ZDBPass       string        `yaml:"zdb_password"`
+	MetaSizeGB    int           `yaml:"meta_size_gb"`
+	DataSizeGB    int           `yaml:"data_size_gb"`
+	RetryInterval time.Duration `yaml:"retry_interval"`
 }
 
 var (
@@ -354,4 +366,260 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return ioutil.WriteFile(dst, data, 0644)
+}
+
+// retryManager handles periodic scanning and retrying of failed uploads
+type retryManager struct {
+	handler    *hookHandler
+	interval   time.Duration
+	uploadedDB string
+}
+
+func newRetryManager(handler *hookHandler, interval time.Duration) (*retryManager, error) {
+	dataDir := filepath.Dir(handler.zstorData)
+	uploadedDB := filepath.Join(dataDir, uploadedDataFiles)
+
+	// Create uploaded data files tracking if it doesn't exist
+	if _, err := os.Stat(uploadedDB); os.IsNotExist(err) {
+		file, err := os.Create(uploadedDB)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create uploaded files tracking: %w", err)
+		}
+		file.Close()
+	}
+
+	if interval <= 0 {
+		interval = defaultRetryInterval
+	}
+
+	return &retryManager{
+		handler:    handler,
+		interval:   interval,
+		uploadedDB: uploadedDB,
+	}, nil
+}
+
+func (rm *retryManager) start() {
+	log.Println("Starting retry manager...")
+
+	for {
+		rm.runRetryCycle()
+		time.Sleep(rm.interval)
+	}
+}
+
+func (rm *retryManager) runRetryCycle() {
+	log.Println("Running retry cycle...")
+
+	// Process each namespace
+	namespaces, err := ioutil.ReadDir(rm.handler.zstorData)
+	if err != nil {
+		log.Printf("Failed to read zstor data dir: %v", err)
+		return
+	}
+
+	// Create temp directory for index files
+	tmpDir, err := ioutil.TempDir("/tmp", "zdb.retry.tmp.")
+	if err != nil {
+		log.Printf("Failed to create temp dir: %v", err)
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, ns := range namespaces {
+		if !ns.IsDir() || ns.Name() == "zdbfs-temp" {
+			continue
+		}
+
+		nsName := ns.Name()
+		rm.processNamespace(nsName, tmpDir)
+	}
+
+	// Send metrics if prometheus pushgateway is available
+	rm.sendMetrics()
+}
+
+func (rm *retryManager) processNamespace(namespace, tmpDir string) {
+	log.Printf("Processing namespace: %s", namespace)
+
+	// Process namespace file
+	namespaceFile := filepath.Join(rm.handler.zstorIndex, namespace, "zdb-namespace")
+	rm.checkAndUploadFile(namespaceFile)
+
+	// Process data and index files
+	for _, fileType := range []string{"data", "index"} {
+		rm.processFiles(namespace, fileType, tmpDir)
+	}
+}
+
+func (rm *retryManager) processFiles(namespace, fileType, tmpDir string) {
+	var basePath string
+	if fileType == "data" {
+		basePath = filepath.Join(rm.handler.zstorData, namespace)
+	} else {
+		basePath = filepath.Join(rm.handler.zstorIndex, namespace)
+	}
+
+	prefix := fileType[:1] // "d" for data, "i" for index
+
+	files, err := filepath.Glob(filepath.Join(basePath, prefix+"*"))
+	if err != nil {
+		log.Printf("Failed to list %s files: %v", fileType, err)
+		return
+	}
+
+	// Sort files and skip the largest sequence number
+	if len(files) <= 1 {
+		return
+	}
+
+	// Sort files by extracting numeric suffix
+	sort.Slice(files, func(i, j int) bool {
+		return extractNumber(files[i]) < extractNumber(files[j])
+	})
+
+	// Skip the last file (largest sequence number)
+	filesToProcess := files[:len(files)-1]
+
+	for _, file := range filesToProcess {
+		if fileType == "index" {
+			// Copy index files to temp directory to avoid concurrent access issues
+			tmpPath := filepath.Join(tmpDir, namespace+"_"+filepath.Base(file))
+			if err := copyFile(file, tmpPath); err != nil {
+				log.Printf("Failed to copy index file %s: %v", file, err)
+				continue
+			}
+			rm.checkAndUploadFile(tmpPath)
+		} else {
+			// Check if data file was already uploaded
+			if !rm.isDataFileUploaded(file) {
+				rm.checkAndUploadFile(file)
+			}
+		}
+	}
+}
+
+// extractNumber extracts the numeric suffix from a filename like "d123" -> 123
+func extractNumber(filename string) int {
+	base := filepath.Base(filename)
+	prefix := base[:1]
+	if prefix != "d" && prefix != "i" {
+		return 0
+	}
+
+	numStr := base[1:]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return 0
+	}
+	return num
+}
+func (rm *retryManager) checkAndUploadFile(file string) {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		return
+	}
+
+	// Get remote and local hashes
+	remoteHash := rm.getRemoteHash(file)
+	localHash := rm.getLocalHash(file)
+
+	if localHash == "" {
+		log.Printf("Failed to get local hash for %s", file)
+		return
+	}
+
+	// Store file if hashes don't match or remote check failed
+	if remoteHash == "" || remoteHash != localHash {
+		log.Printf("Uploading %s (remote: %s, local: %s)", file, remoteHash, localHash)
+
+		// Use a single attempt version of runZstor for retry manager
+		cmd := exec.Command(rm.handler.zstorBin, "-c", rm.handler.zstorConf, "store", "-s", "--file", file)
+		log.Printf("Executing: %s", cmd.String())
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("Failed to upload %s: %v. Output: %s", file, err, string(output))
+			return
+		}
+
+		log.Printf("Successfully uploaded: %s", file)
+
+		// Track uploaded data files
+		if strings.Contains(file, "/data/") {
+			rm.markDataFileUploaded(file, localHash)
+		}
+	} else if remoteHash == localHash && strings.Contains(file, "/data/") {
+		// Already uploaded, mark it
+		rm.markDataFileUploaded(file, localHash)
+	}
+}
+func (rm *retryManager) getRemoteHash(file string) string {
+	cmd := exec.Command(rm.handler.zstorBin, "-c", rm.handler.zstorConf, "check", "--file", file)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func (rm *retryManager) getLocalHash(file string) string {
+	// Try b2sum first, fallback to sha256sum
+	cmd := exec.Command("b2sum", "-l", "128", file)
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback to sha256sum
+		cmd = exec.Command("sha256sum", file)
+		output, err = cmd.Output()
+		if err != nil {
+			return ""
+		}
+	}
+	parts := strings.Fields(string(output))
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+func (rm *retryManager) isDataFileUploaded(file string) bool {
+	if _, err := os.Stat(rm.uploadedDB); os.IsNotExist(err) {
+		return false
+	}
+
+	content, err := ioutil.ReadFile(rm.uploadedDB)
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(string(content), file)
+}
+func (rm *retryManager) markDataFileUploaded(file, hash string) {
+	// Append to uploaded files tracking
+	line := fmt.Sprintf("%s %s\n", file, hash)
+	if !rm.isDataFileUploaded(file) {
+		f, err := os.OpenFile(rm.uploadedDB, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			log.Printf("Failed to mark file as uploaded: %v", err)
+			return
+		}
+		defer f.Close()
+		f.WriteString(line)
+	}
+}
+
+func (rm *retryManager) sendMetrics() {
+	// Check if prometheus pushgateway is running
+	cmd := exec.Command("pgrep", "prometheus-push")
+	if err := cmd.Run(); err != nil {
+		return // Pushgateway not running
+	}
+
+	timestamp := time.Now().Unix()
+	metrics := fmt.Sprintf(`# TYPE last_retry_run_time gauge
+last_retry_run_time %d
+`, timestamp)
+
+	curlCmd := exec.Command("curl", "-s", "--data-binary", "@-", "localhost:9091/metrics/job/qsfs_retry_uploads")
+	curlCmd.Stdin = strings.NewReader(metrics)
+	curlCmd.Run()
 }
