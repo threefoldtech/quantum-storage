@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const hookSocketPath = "/tmp/quantumd.sock"
+const hookSocketPath = "/tmp/zdb-hook.sock"
 
 // hookCmd represents the hook command
 var hookCmd = &cobra.Command{
