@@ -345,7 +345,9 @@ func getBinaryVersion(binaryPath string) (string, error) {
 
 	cmd := exec.Command(binaryPath, "--version")
 	output, err := cmd.CombinedOutput()
-	if err != nil {
+
+	// zdbfs exits with code 1, so ignore that here
+	if err != nil && !strings.Contains(err.Error(), "exit status") {
 		return "", fmt.Errorf("failed to get version: %w", err)
 	}
 
@@ -362,12 +364,12 @@ func getBinaryVersion(binaryPath string) (string, error) {
 			}
 		}
 	} else if strings.Contains(binaryPath, "zdbfs") {
-		// zdbfs format: "[+] initializing zdbfs v0.1.12-syfork"
+		// zdbfs format: "[+] initializing zdbfs v0.1.12"
 		if strings.Contains(outputStr, "zdbfs v") {
 			parts := strings.Split(outputStr, "zdbfs v")
 			if len(parts) > 1 {
-				versionPart := strings.Split(parts[1], "-")[0]
-				return strings.TrimPrefix(versionPart, "v"), nil
+				versionPart := strings.Split(parts[1], " ")[0]
+				return versionPart, nil
 			}
 		}
 	} else if strings.Contains(binaryPath, "zstor") {
