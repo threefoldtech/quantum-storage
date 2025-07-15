@@ -23,5 +23,5 @@ checksum:
 
 release:
   github:
-    owner: your-github-username
-    name: quantum-storage
+    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    name: "{{ .Env.GITHUB_REPOSITORY_NAME }}"
