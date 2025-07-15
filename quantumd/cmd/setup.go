@@ -341,6 +341,76 @@ const (
 	zstorVersion = "0.4.0"
 )
 
+func getBinaryVersion(binaryPath string) (string, error) {
+	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("binary not found")
+	}
+
+	cmd := exec.Command(binaryPath, "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get version: %w", err)
+	}
+
+	outputStr := string(output)
+
+	// Parse version based on binary type
+	if strings.Contains(binaryPath, "zdb") && !strings.Contains(binaryPath, "zdbfs") {
+		// zdb format: "0-db engine, v2.0.8 (commit 2.0.8)"
+		if strings.Contains(outputStr, "v2.") {
+			parts := strings.Split(outputStr, "v")
+			if len(parts) > 1 {
+				versionPart := strings.Split(parts[1], " ")[0]
+				return strings.TrimPrefix(versionPart, "v"), nil
+			}
+		}
+	} else if strings.Contains(binaryPath, "zdbfs") {
+		// zdbfs format: "[+] initializing zdbfs v0.1.12-syfork"
+		if strings.Contains(outputStr, "zdbfs v") {
+			parts := strings.Split(outputStr, "zdbfs v")
+			if len(parts) > 1 {
+				versionPart := strings.Split(parts[1], "-")[0]
+				return strings.TrimPrefix(versionPart, "v"), nil
+			}
+		}
+	} else if strings.Contains(binaryPath, "zstor") {
+		// zstor format: "zstor_v2 0.4.0"
+		parts := strings.Fields(outputStr)
+		if len(parts) >= 2 {
+			return strings.TrimPrefix(parts[1], "v"), nil
+		}
+	}
+
+	return "", fmt.Errorf("unable to parse version from output: %s", outputStr)
+}
+
+func needsDownload(binaryName, expectedVersion string) (bool, error) {
+	var binaryPath string
+	if binaryName == "zstor" {
+		binaryPath = "/bin/zstor"
+	} else {
+		binaryPath = "/usr/local/bin/" + binaryName
+	}
+
+	currentVersion, err := getBinaryVersion(binaryPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "binary not found") {
+			fmt.Printf("Binary %s not found, will download\n", binaryName)
+			return true, nil
+		}
+		fmt.Printf("Error checking %s version: %v, will download\n", binaryName, err)
+		return true, nil
+	}
+
+	if currentVersion == expectedVersion {
+		fmt.Printf("Binary %s already has correct version %s, skipping download\n", binaryName, expectedVersion)
+		return false, nil
+	}
+
+	fmt.Printf("Binary %s has version %s, expected %s, will download\n", binaryName, currentVersion, expectedVersion)
+	return true, nil
+}
+
 func downloadBinaries() error {
 	binaries := map[string]string{
 		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
@@ -349,7 +419,26 @@ func downloadBinaries() error {
 	}
 
 	for name, url := range binaries {
-		fmt.Printf("Downloading %s...\n", name)
+		var expectedVersion string
+		switch name {
+		case "zdbfs":
+			expectedVersion = zdbfsVersion
+		case "zdb":
+			expectedVersion = zdbVersion
+		case "zstor":
+			expectedVersion = zstorVersion
+		}
+
+		needsDL, err := needsDownload(name, expectedVersion)
+		if err != nil {
+			return fmt.Errorf("failed to check if %s needs download: %w", name, err)
+		}
+
+		if !needsDL {
+			continue
+		}
+
+		fmt.Printf("Downloading %s v%s...\n", name, expectedVersion)
 		dest := "/usr/local/bin/" + name
 		if name == "zstor" {
 			dest = "/bin/zstor"
