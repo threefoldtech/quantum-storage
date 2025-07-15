@@ -111,52 +111,54 @@ start_container() {
 # Simulate component failures
 kill_zstor() {
     log "Stopping zstor service"
-    docker exec "${CONTAINER_NAME}" systemctl stop zstor || true
+    docker exec "${CONTAINER_NAME}" zinit stop zstor || true
     docker exec "${CONTAINER_NAME}" pkill -f zstor || true
 }
 
 kill_backend_zdb() {
     local port="$1"
+    local service_num=$((port - 9900))
     log "Stopping backend ZDB service on port ${port}"
-    docker exec "${CONTAINER_NAME}" systemctl stop zdb-backend-${port} || true
+    docker exec "${CONTAINER_NAME}" zinit stop zdb-back${service_num} || true
     docker exec "${CONTAINER_NAME}" pkill -f "zdb.*${port}" || true
 }
 
 kill_zdbfs() {
     log "Stopping zdbfs service"
-    docker exec "${CONTAINER_NAME}" systemctl stop zdbfs || true
+    docker exec "${CONTAINER_NAME}" zinit stop zdbfs || true
     docker exec "${CONTAINER_NAME}" pkill -f zdbfs || true
 }
 
 kill_frontend_zdb() {
     log "Stopping frontend ZDB service"
-    docker exec "${CONTAINER_NAME}" systemctl stop zdb-frontend || true
+    docker exec "${CONTAINER_NAME}" zinit stop zdb || true
     docker exec "${CONTAINER_NAME}" pkill -f "zdb.*9900" || true
 }
 
 # Restore components
 restore_zstor() {
     log "Restarting zstor service"
-    docker exec "${CONTAINER_NAME}" systemctl start zstor || true
+    docker exec "${CONTAINER_NAME}" zinit start zstor || true
     sleep 2
 }
 
 restore_zdb_backend() {
     local port="$1"
+    local service_num=$((port - 9900))
     log "Restarting ZDB backend service on port ${port}"
-    docker exec "${CONTAINER_NAME}" systemctl start zdb-backend-${port} || true
+    docker exec "${CONTAINER_NAME}" zinit start zdb-back${service_num} || true
     sleep 2
 }
 
 restore_zdbfs() {
     log "Restarting zdbfs service"
-    docker exec "${CONTAINER_NAME}" systemctl start zdbfs || true
+    docker exec "${CONTAINER_NAME}" zinit start zdbfs || true
     sleep 2
 }
 
 restore_frontend_zdb() {
     log "Restarting frontend ZDB service"
-    docker exec "${CONTAINER_NAME}" systemctl start zdb-frontend || true
+    docker exec "${CONTAINER_NAME}" zinit start zdb || true
     sleep 2
 }
 
