@@ -76,7 +76,7 @@ var destroyDeployments bool
 
 func init() {
 	deployCmd.Flags().BoolVarP(&destroyDeployments, "destroy", "d", false, "Destroy existing deployments")
-	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor-default.toml", "Path to write generated zstor config")
+	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor.toml", "Path to write generated zstor config")
 	rootCmd.AddCommand(deployCmd)
 }
 

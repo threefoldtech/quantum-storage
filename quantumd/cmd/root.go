@@ -137,7 +137,7 @@ func newHookHandler() (*hookHandler, error) {
 
 	h := &hookHandler{
 		prefix:     prefix,
-		zstorConf:  filepath.Join(prefix, "etc", "zstor-default.toml"),
+		zstorConf:  filepath.Join(prefix, "etc", "zstor.toml"),
 		zstorBin:   filepath.Join(prefix, "bin", "zstor"),
 		zstorIndex: filepath.Join(prefix, "data", "index"),
 		zstorData:  filepath.Join(prefix, "data", "data"),
@@ -821,6 +821,5 @@ last_retry_run_time %d
 	curlCmd.Stdin = strings.NewReader(metrics)
 	curlCmd.Run()
 }
-
 
 const socketPath = "/tmp/zdb-hook.sock"
