@@ -1,4 +1,4 @@
-module github.com/threefoldtech/quantum-daemon
+module github.com/threefoldtech/quantum-storage/quantumd
 
 go 1.23.0
 
@@ -9,7 +9,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/threefoldtech/tfgrid-sdk-go/grid-client v0.16.8
-	gopkg.in/yaml.v3 v3.0.1
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -59,5 +59,4 @@ require (
 	gonum.org/v1/gonum v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

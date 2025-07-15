@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/threefoldtech/quantum-daemon/cmd"
+	"github.com/threefoldtech/quantum-storage/quantumd/cmd"
 )
 
 //go:embed all:assets
