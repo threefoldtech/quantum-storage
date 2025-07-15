@@ -1,3 +1,3 @@
-exec: /usr/bin/quantumd
+exec: /usr/local/bin/quantumd
 after:
   - zstor

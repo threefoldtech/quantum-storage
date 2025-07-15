@@ -1,11 +1,11 @@
-FROM alpine:3.18
+FROM ubuntu:24.04
+
+# Install wget
+RUN apt-get update && apt-get install -y wget redis
 
 # Install zinit
 RUN wget -O /sbin/zinit https://github.com/threefoldtech/zinit/releases/download/v0.2.14/zinit && \
     chmod +x /sbin/zinit
-
-# Install redis-cli
-RUN apk add --no-cache redis
 
 # Copy pre-built binary and hook symlink
 COPY quantumd /usr/local/bin/quantumd
