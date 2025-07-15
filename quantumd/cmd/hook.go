@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"strings"
@@ -38,7 +39,23 @@ It communicates with the main quantumd daemon via a Unix socket, passing all arg
 			return nil
 		}
 
-		fmt.Printf("Hook message sent to daemon: %s", message)
+		// Read response from daemon for blocking hooks
+		scanner := bufio.NewScanner(conn)
+		if scanner.Scan() {
+			response := scanner.Text()
+			fmt.Printf("Hook response from daemon: %s\n", response)
+
+			// Exit with appropriate code based on response
+			if strings.HasPrefix(response, "ERROR: ") {
+				return fmt.Errorf("hook failed: %s", response[7:])
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "error reading response from daemon: %v\n", err)
+			return nil
+		}
+
 		return nil
 	},
 }

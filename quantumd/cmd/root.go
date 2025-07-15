@@ -187,19 +187,39 @@ func (h *hookHandler) handleConnection(conn net.Conn) {
 		parts := strings.Fields(line)
 		if len(parts) == 0 {
 			log.Println("Received empty hook message, ignoring.")
+			fmt.Fprintf(conn, "ERROR: empty hook message\n")
 			return
 		}
 
 		action := parts[0]
 		args := parts[1:]
 
-		if err := h.dispatchHook(action, args); err != nil {
-			log.Printf("Error handling hook action '%s': %v", action, err)
+		// Check if this is a blocking hook
+		isBlocking := action == "missing-data"
+
+		if isBlocking {
+			// Handle blocking hooks synchronously
+			err := h.dispatchHook(action, args)
+			if err != nil {
+				log.Printf("Error handling blocking hook action '%s': %v", action, err)
+				fmt.Fprintf(conn, "ERROR: %v\n", err)
+			} else {
+				fmt.Fprintf(conn, "SUCCESS: %s completed\n", action)
+			}
+		} else {
+			// Handle non-blocking hooks asynchronously
+			go func() {
+				if err := h.dispatchHook(action, args); err != nil {
+					log.Printf("Error handling hook action '%s': %v", action, err)
+				}
+			}()
+			fmt.Fprintf(conn, "SUCCESS: %s queued\n", action)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Printf("Error reading from hook connection: %v", err)
+		fmt.Fprintf(conn, "ERROR: %v\n", err)
 	}
 }
 
