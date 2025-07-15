@@ -24,7 +24,7 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "quantum-daemon",
+	Use:   "quantumd",
 	Short: "Quantum Storage Filesystem management daemon",
 	Long:  `Automates the setup and management of QSFS components including zstor, zdb and zdbfs.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
