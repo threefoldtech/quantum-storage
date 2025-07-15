@@ -27,7 +27,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist
+          args: release --clean
         env:
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
