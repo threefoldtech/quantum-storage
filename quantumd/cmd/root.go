@@ -241,24 +241,19 @@ func (h *hookHandler) dispatchHook(action string, args []string) error {
 	}
 }
 
-// runZstor executes the zstor command with the given arguments,
-// retrying on failure indefinitely.
+// runZstor executes the zstor command with the given arguments
 func (h *hookHandler) runZstor(args ...string) error {
-	for {
-		cmd := exec.Command(h.zstorBin, args...)
-		log.Printf("Executing: %s", cmd.String())
+	cmd := exec.Command(h.zstorBin, args...)
+	log.Printf("Executing: %s", cmd.String())
 
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			log.Printf("Successfully executed: %s", cmd.String())
-			log.Printf("Output: %s", string(output))
-			return nil
-		}
-
-		log.Printf("Command failed: %s. Error: %v. Output: %s", cmd.String(), err, string(output))
-		log.Println("Retrying in 1 second...")
-		time.Sleep(1 * time.Second)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		log.Printf("Successfully executed: %s", cmd.String())
+		return nil
 	}
+
+	log.Printf("Command failed: %s. Error: %v. Output: %s", cmd.String(), err, string(output))
+	return err
 }
 
 func (h *hookHandler) handleClose() error {
