@@ -14,11 +14,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	localMode bool
+const (
+	zdbfsVersion = "0.1.11"
+	zdbVersion   = "2.0.8"
+	zstorVersion = "0.5.0-rc.1"
 )
 
 var (
+	localMode      bool
 	SystemdAssets  embed.FS
 	TemplateAssets embed.FS
 )
@@ -334,12 +337,6 @@ func detectInitSystem() (string, error) {
 
 	return "", fmt.Errorf("no supported init system found")
 }
-
-const (
-	zdbfsVersion = "0.1.11"
-	zdbVersion   = "2.0.8"
-	zstorVersion = "0.4.0"
-)
 
 func getBinaryVersion(binaryPath string) (string, error) {
 	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
