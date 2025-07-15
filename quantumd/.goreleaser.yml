@@ -1,4 +1,6 @@
 # .goreleaser.yml
+version: 2
+
 builds:
   - env:
       - CGO_ENABLED=1
@@ -6,15 +8,14 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm64
     flags:
       - -tags=musl
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - formats: ["binary", "tar.gz"]
+    name_template: "quantumd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
