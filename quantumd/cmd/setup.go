@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -353,14 +354,26 @@ func getBinaryVersion(binaryPath string) (string, error) {
 
 	outputStr := string(output)
 
+	// Helper function to clean version string
+	cleanVersion := func(s string) string {
+		// Remove ANSI escape sequences
+		re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+		s = re.ReplaceAllString(s, "")
+		// Remove other control characters
+		s = strings.TrimSpace(s)
+		// Remove any trailing quotes or brackets
+		s = strings.Trim(s, "'\"[]")
+		return s
+	}
+
 	// Parse version based on binary type
 	if strings.Contains(binaryPath, "zdb") && !strings.Contains(binaryPath, "zdbfs") {
 		// zdb format: "0-db engine, v2.0.8 (commit 2.0.8)"
-		if strings.Contains(outputStr, "v2.") {
+		if strings.Contains(outputStr, "v") {
 			parts := strings.Split(outputStr, "v")
 			if len(parts) > 1 {
 				versionPart := strings.Split(parts[1], " ")[0]
-				return strings.TrimPrefix(versionPart, "v"), nil
+				return cleanVersion(strings.TrimPrefix(versionPart, "v")), nil
 			}
 		}
 	} else if strings.Contains(binaryPath, "zdbfs") {
@@ -368,15 +381,15 @@ func getBinaryVersion(binaryPath string) (string, error) {
 		if strings.Contains(outputStr, "zdbfs v") {
 			parts := strings.Split(outputStr, "zdbfs v")
 			if len(parts) > 1 {
-				versionPart := strings.Split(parts[1], " ")[0]
-				return versionPart, nil
+				versionPart := strings.Split(parts[1], "\n")[0]
+				return cleanVersion(versionPart), nil
 			}
 		}
 	} else if strings.Contains(binaryPath, "zstor") {
 		// zstor format: "zstor_v2 0.4.0"
 		parts := strings.Fields(outputStr)
 		if len(parts) >= 2 {
-			return strings.TrimPrefix(parts[1], "v"), nil
+			return cleanVersion(strings.TrimPrefix(parts[1], "v")), nil
 		}
 	}
 
@@ -409,7 +422,6 @@ func needsDownload(binaryName, expectedVersion string) (bool, error) {
 	fmt.Printf("Binary %s has version %s, expected %s, will download\n", binaryName, currentVersion, expectedVersion)
 	return true, nil
 }
-
 func downloadBinaries() error {
 	binaries := map[string]string{
 		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
