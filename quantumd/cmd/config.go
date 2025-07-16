@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Network        string        `yaml:"network"`
 	Mnemonic       string        `yaml:"mnemonic"`
+	DeploymentName string        `yaml:"deployment_name"`
 	MetaNodes      []uint32      `yaml:"meta_nodes"`
 	DataNodes      []uint32      `yaml:"data_nodes"`
 	Password       string        `yaml:"password"`
