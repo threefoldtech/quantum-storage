@@ -9,6 +9,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/threefoldtech/tfgrid-sdk-go/grid-client v0.16.8
+	github.com/threefoldtech/tfgrid-sdk-go/grid-proxy v0.16.8
 	github.com/tyler-smith/go-bip39 v1.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -47,7 +48,6 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/threefoldtech/tfchain/clients/tfchain-client-go v0.0.0-20241127100051-77e684bcb1b2 // indirect
-	github.com/threefoldtech/tfgrid-sdk-go/grid-proxy v0.16.8 // indirect
 	github.com/threefoldtech/tfgrid-sdk-go/rmb-sdk-go v0.16.8 // indirect
 	github.com/threefoldtech/zosbase v0.1.7 // indirect
 	github.com/vedhavyas/go-subkey v1.0.3 // indirect
