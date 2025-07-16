@@ -79,10 +79,6 @@ func setupQSFS() error {
 		if err := generateLocalZstorConfig(); err != nil {
 			return fmt.Errorf("failed to generate local zstor config: %w", err)
 		}
-	} else {
-		if err := generateZstorConfig(cfg); err != nil {
-			return fmt.Errorf("failed to generate zstor config: %w", err)
-		}
 	}
 
 	if localMode {
