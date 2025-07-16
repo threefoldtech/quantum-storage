@@ -12,7 +12,7 @@ type Config struct {
 	Mnemonic       string        `yaml:"mnemonic"`
 	MetaNodes      []uint32      `yaml:"meta_nodes"`
 	DataNodes      []uint32      `yaml:"data_nodes"`
-	ZdbPassword    string        `yaml:"zdb_password"`
+	Password       string        `yaml:"password"`
 	MetaSizeGb     int           `yaml:"meta_size_gb"`
 	DataSizeGb     int           `yaml:"data_size_gb"`
 	MinShards      int           `yaml:"min_shards"`
@@ -43,6 +43,11 @@ func LoadConfig(path string) (*Config, error) {
 	err = yaml.Unmarshal(f, &cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	// Override with environment variables if they are set
+	if mnemonic := os.Getenv("MNEMONIC"); mnemonic != "" {
+		cfg.Mnemonic = mnemonic
 	}
 
 	return &cfg, nil

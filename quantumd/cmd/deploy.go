@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
+	bip39 "github.com/tyler-smith/go-bip39"
 )
 
 func parseNodeIDs(input string) ([]uint32, error) {
@@ -56,12 +57,12 @@ Use --destroy to remove existing deployments.`,
 			fmt.Println("Error: data nodes are required in config")
 			os.Exit(1)
 		}
-		if cfg.ZdbPassword == "" {
-			fmt.Println("Error: ZDB password is required in config")
+		if cfg.Password == "" {
+			fmt.Println("Error: password is required in config")
 			os.Exit(1)
 		}
-		if strings.ContainsAny(cfg.ZdbPassword, "- ") {
-			fmt.Println("Error: ZDB password cannot contain dashes or spaces")
+		if strings.ContainsAny(cfg.Password, "- ") {
+			fmt.Println("Error: password cannot contain dashes or spaces")
 			os.Exit(1)
 		}
 
@@ -126,8 +127,8 @@ func deployBackends(cfg *Config) error {
 	if len(cfg.DataNodes) == 0 {
 		return fmt.Errorf("data nodes are required in config")
 	}
-	if cfg.ZdbPassword == "" {
-		return fmt.Errorf("ZDB password is required in config")
+	if cfg.Password == "" {
+		return fmt.Errorf("password is required in config")
 	}
 	// Create grid client
 	relay := "wss://relay.grid.tf"
@@ -149,7 +150,7 @@ func deployBackends(cfg *Config) error {
 		ns := fmt.Sprintf("meta_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    cfg.ZdbPassword,
+			Password:    cfg.Password,
 			Public:      false,
 			SizeGB:      uint64(cfg.MetaSizeGb),
 			Description: "QSFS metadata namespace",
@@ -166,7 +167,7 @@ func deployBackends(cfg *Config) error {
 		ns := fmt.Sprintf("data_%d", nodeID)
 		zdb := workloads.ZDB{
 			Name:        ns,
-			Password:    cfg.ZdbPassword,
+			Password:    cfg.Password,
 			Public:      false,
 			SizeGB:      uint64(cfg.DataSizeGb),
 			Description: "QSFS data namespace",
@@ -228,6 +229,11 @@ func deployBackends(cfg *Config) error {
 }
 
 func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
+	key, err := keyFromMnemonic(cfg.Mnemonic, cfg.Password)
+	if err != nil {
+		return errors.Wrap(err, "failed to generate key from mnemonic")
+	}
+
 	config := fmt.Sprintf(`minimal_shards = %d
 expected_shards = %d
 redundant_groups = 0
@@ -254,14 +260,14 @@ key = "%s"
 
 [meta.config.encryption]
 algorithm = "AES"
-key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, randomKey(), randomKey())
+key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, key, key)
 
 	// Add meta backends
 	config += "\n\n[[meta.config.backends]]\n"
 	for _, zdb := range meta {
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
 		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
-		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.ZdbPassword)
+		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.Password)
 		if zdb != meta[len(meta)-1] {
 			config += "[[meta.config.backends]]\n"
 		}
@@ -273,7 +279,7 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 		config += fmt.Sprintf("[[groups.backends]]\n")
 		config += fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1])
 		config += fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace)
-		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.ZdbPassword)
+		config += fmt.Sprintf("password = \"%s\"\n\n", cfg.Password)
 	}
 
 	// Write config file
@@ -285,11 +291,8 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 	return nil
 }
 
-func randomKey() string {
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		panic("failed to generate random key")
-	}
-	// Format as 32 hex bytes (64 chars) without spaces or dashes
-	return fmt.Sprintf("%064x", key)
+func keyFromMnemonic(mnemonic, password string) (string, error) {
+	seed := bip39.NewSeed(mnemonic, password)
+	hash := sha256.Sum256(seed)
+	return fmt.Sprintf("%x", hash), nil
 }

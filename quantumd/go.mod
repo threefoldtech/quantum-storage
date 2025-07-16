@@ -9,6 +9,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/threefoldtech/tfgrid-sdk-go/grid-client v0.16.8
+	github.com/tyler-smith/go-bip39 v1.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

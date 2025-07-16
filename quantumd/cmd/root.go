@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 					QsfsMountpoint: "/mnt/qsfs",
 					ZdbRootPath:    "/var/lib/zdb",
 					CachePath:      "/var/cache/zdbfs",
-					ZdbPassword:    "zdbpassword",
+					Password:    "zdbpassword",
 					MinShards:      2,
 					ExpectedShards: 4,
 				}
