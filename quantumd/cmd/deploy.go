@@ -89,6 +89,79 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
+type deploymentInfo struct {
+	Contract       types.Contract
+	DeploymentName string
+}
+
+func getContracts(grid *deployer.TFPluginClient, twinID uint64) ([]deploymentInfo, error) {
+	allContracts := make([]types.Contract, 0)
+	page := uint64(1)
+	const pageSize = 100
+
+	filter := types.ContractFilter{
+		TwinID: &twinID,
+		State:  []string{"Created"},
+	}
+
+	for {
+		limit := types.Limit{
+			Size: pageSize,
+			Page: page,
+		}
+
+		contracts, _, err := grid.GridProxyClient.Contracts(context.Background(), filter, limit)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to query contracts page %d", page)
+		}
+
+		allContracts = append(allContracts, contracts...)
+
+		if len(contracts) < pageSize {
+			break
+		}
+
+		page++
+	}
+
+	var deploymentContracts []deploymentInfo
+	for _, contract := range allContracts {
+		if contract.Type != "node" {
+			continue
+		}
+
+		var name string
+		var deploymentData string
+
+		// Handle both possible types for contract.Details
+		if details, ok := contract.Details.(types.NodeContractDetails); ok {
+			deploymentData = details.DeploymentData
+		} else if details, ok := contract.Details.(map[string]interface{}); ok {
+			if dd, ok := details["deployment_data"].(string); ok {
+				deploymentData = dd
+			}
+		}
+
+		if deploymentData != "" {
+			var data struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal([]byte(deploymentData), &data); err == nil {
+				name = data.Name
+			}
+		}
+
+		if name != "" {
+			deploymentContracts = append(deploymentContracts, deploymentInfo{
+				Contract:       contract,
+				DeploymentName: name,
+			})
+		}
+	}
+
+	return deploymentContracts, nil
+}
+
 func destroyBackends(cfg *Config) error {
 	if cfg.DeploymentName == "" {
 		return errors.New("deployment_name is required in config for destroying")
@@ -111,48 +184,19 @@ func destroyBackends(cfg *Config) error {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	ctx := context.Background()
-	twinID := grid.TwinID
-	twinID64 := uint64(twinID)
-	filter := types.ContractFilter{
-		TwinID: &twinID64,
-		State:  []string{"Created"},
-	}
-	limit := types.Limit{
-		Size: 100, // Should be enough for most deployments
-	}
-
-	contracts, _, err := grid.GridProxyClient.Contracts(ctx, filter, limit)
+	twinID := uint64(grid.TwinID)
+	contracts, err := getContracts(&grid, twinID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query contracts for twin %d", twinID)
 	}
 
 	var contractsToCancel []types.Contract
-	for _, contract := range contracts {
-		var name string
-		if contract.Type == "name" {
-			if details, ok := contract.Details.(map[string]interface{}); ok {
-				if n, ok := details["name"].(string); ok {
-					name = n
-				}
-			}
-		} else if contract.Type == "node" {
-			if details, ok := contract.Details.(types.NodeContractDetails); ok {
-				if deploymentData := details.DeploymentData; deploymentData != "" {
-					var data struct {
-						Name string `json:"name"`
-					}
-					if err := json.Unmarshal([]byte(deploymentData), &data); err == nil {
-						name = data.Name
-					}
-				}
-			}
-		}
-
+	for _, contractInfo := range contracts {
+		name := contractInfo.DeploymentName
 		if strings.HasPrefix(name, cfg.DeploymentName) {
 			parts := strings.Split(name, "_")
 			if len(parts) == 4 && parts[0] == cfg.DeploymentName && (parts[2] == "meta" || parts[2] == "data") {
-				contractsToCancel = append(contractsToCancel, contract)
+				contractsToCancel = append(contractsToCancel, contractInfo.Contract)
 			}
 		}
 	}
@@ -199,16 +243,8 @@ func deployBackends(cfg *Config) error {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	ctx := context.Background()
-	twinID := grid.TwinID
-	twinID64 := uint64(twinID)
-	filter := types.ContractFilter{
-		TwinID: &twinID64,
-	}
-	limit := types.Limit{
-		Size: 200, // Should be enough
-	}
-	contracts, _, err := grid.GridProxyClient.Contracts(ctx, filter, limit)
+	twinID := uint64(grid.TwinID)
+	contracts, err := getContracts(&grid, twinID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query for existing contracts for twin %d", twinID)
 	}
@@ -220,27 +256,8 @@ func deployBackends(cfg *Config) error {
 	if len(contracts) > 0 {
 		fmt.Println("Found existing deployments, will only deploy missing ZDBs.")
 		// Extract random string and existing nodes
-		for _, contract := range contracts {
-			var name string
-			if contract.Type == "name" {
-				if details, ok := contract.Details.(map[string]interface{}); ok {
-					if n, ok := details["name"].(string); ok {
-						name = n
-					}
-				}
-			} else if contract.Type == "node" {
-				if details, ok := contract.Details.(map[string]interface{}); ok {
-					if deploymentData, ok := details["deployment_data"].(string); ok {
-						var data struct {
-							Name string `json:"name"`
-						}
-						if err := json.Unmarshal([]byte(deploymentData), &data); err == nil {
-							name = data.Name
-						}
-					}
-				}
-			}
-
+		for _, contractInfo := range contracts {
+			name := contractInfo.DeploymentName
 			if !strings.HasPrefix(name, cfg.DeploymentName) {
 				continue
 			}
