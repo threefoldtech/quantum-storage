@@ -2,14 +2,13 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -193,9 +192,10 @@ func destroyBackends(cfg *Config) error {
 	var contractsToCancel []types.Contract
 	for _, contractInfo := range contracts {
 		name := contractInfo.DeploymentName
-		if strings.HasPrefix(name, cfg.DeploymentName) {
+		expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, twinID)
+		if strings.HasPrefix(name, expectedPrefix) {
 			parts := strings.Split(name, "_")
-			if len(parts) == 4 && parts[0] == cfg.DeploymentName && (parts[2] == "meta" || parts[2] == "data") {
+			if len(parts) == 4 && (parts[2] == "meta" || parts[2] == "data") {
 				contractsToCancel = append(contractsToCancel, contractInfo.Contract)
 			}
 		}
@@ -220,14 +220,6 @@ func destroyBackends(cfg *Config) error {
 	return nil
 }
 
-func newRandom(n int) (string, error) {
-	bytes := make([]byte, n)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
 func deployBackends(cfg *Config) error {
 	// Create grid client
 	relay := "wss://relay.grid.tf"
@@ -244,51 +236,77 @@ func deployBackends(cfg *Config) error {
 	}
 
 	twinID := uint64(grid.TwinID)
+
+	// Load existing deployments into state
 	contracts, err := getContracts(&grid, twinID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query for existing contracts for twin %d", twinID)
 	}
 
-	var randoms string
-	existingMetaNodes := make(map[uint32]bool)
-	existingDataNodes := make(map[uint32]bool)
-
 	if len(contracts) > 0 {
-		fmt.Println("Found existing deployments, will only deploy missing ZDBs.")
-		// Extract random string and existing nodes
+		fmt.Println("Found existing deployments, loading them into state...")
 		for _, contractInfo := range contracts {
 			name := contractInfo.DeploymentName
-			if !strings.HasPrefix(name, cfg.DeploymentName) {
+			expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, twinID)
+			if !strings.HasPrefix(name, expectedPrefix) {
 				continue
 			}
 
 			parts := strings.Split(name, "_")
-			if len(parts) != 4 || parts[0] != cfg.DeploymentName {
+			if len(parts) != 4 {
 				continue
 			}
-			if randoms == "" {
-				randoms = parts[1]
-				fmt.Printf("Using existing random identifier: %s\n", randoms)
-			}
-			nodeType := parts[2]
+
 			nodeID, err := strconv.ParseUint(parts[3], 10, 32)
 			if err != nil {
+				fmt.Printf("warn: could not parse nodeID from deployment name '%s': %v\n", name, err)
 				continue
 			}
-			if nodeType == "meta" {
-				existingMetaNodes[uint32(nodeID)] = true
-			} else if nodeType == "data" {
-				existingDataNodes[uint32(nodeID)] = true
+
+			// First, store the contract ID in the state
+			grid.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
+
+			// This loads the deployment into grid.State
+			if _, err := grid.State.LoadDeploymentFromGrid(context.Background(), uint32(nodeID), name); err != nil {
+				fmt.Printf("warn: could not load deployment '%s' from grid: %v\n", name, err)
+				continue
 			}
 		}
 	}
 
-	if randoms == "" {
-		randoms, err = newRandom(4)
-		if err != nil {
-			return errors.Wrap(err, "failed to generate random string")
+	existingMetaNodes := make(map[uint32]bool)
+	existingDataNodes := make(map[uint32]bool)
+	for nodeID, contractIDs := range grid.State.CurrentNodeDeployments {
+		for _, contractID := range contractIDs {
+			contract, err := grid.SubstrateConn.GetContract(contractID)
+			if err != nil {
+				continue
+			}
+			var deploymentData struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal([]byte(contract.ContractType.NodeContract.DeploymentData), &deploymentData); err != nil {
+				continue
+			}
+			name := deploymentData.Name
+			expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, twinID)
+			if !strings.HasPrefix(name, expectedPrefix) {
+				continue
+			}
+			parts := strings.Split(name, "_")
+			if len(parts) != 4 {
+				continue
+			}
+			nodeType := parts[2]
+			if nodeType == "meta" {
+				existingMetaNodes[nodeID] = true
+			} else if nodeType == "data" {
+				existingDataNodes[nodeID] = true
+			}
 		}
-		fmt.Printf("Generated new random identifier: %s\n", randoms)
+	}
+	if len(existingMetaNodes) > 0 || len(existingDataNodes) > 0 {
+		fmt.Println("Finished loading, will only deploy missing ZDBs.")
 	}
 
 	// Prepare metadata deployments
@@ -298,7 +316,7 @@ func deployBackends(cfg *Config) error {
 			fmt.Printf("Skipping metadata deployment on node %d, already exists.\n", nodeID)
 			continue
 		}
-		name := fmt.Sprintf("%s_%s_meta_%d", cfg.DeploymentName, randoms, nodeID)
+		name := fmt.Sprintf("%s_%d_meta_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
 			Name:        name,
 			Password:    cfg.Password,
@@ -318,7 +336,7 @@ func deployBackends(cfg *Config) error {
 			fmt.Printf("Skipping data deployment on node %d, already exists.\n", nodeID)
 			continue
 		}
-		name := fmt.Sprintf("%s_%s_data_%d", cfg.DeploymentName, randoms, nodeID)
+		name := fmt.Sprintf("%s_%d_data_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
 			Name:        name,
 			Password:    cfg.Password,
@@ -334,7 +352,9 @@ func deployBackends(cfg *Config) error {
 	// Batch deploy metadata ZDBs
 	if len(metaDeploymentConfigs) > 0 {
 		fmt.Printf("Batch deploying %d metadata ZDBs...\n", len(metaDeploymentConfigs))
-		if err := grid.DeploymentDeployer.BatchDeploy(context.TODO(), metaDeploymentConfigs); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := grid.DeploymentDeployer.BatchDeploy(ctx, metaDeploymentConfigs); err != nil {
 			return errors.Wrap(err, "failed to batch deploy metadata ZDBs")
 		}
 	}
@@ -342,7 +362,9 @@ func deployBackends(cfg *Config) error {
 	// Batch deploy data ZDBs
 	if len(dataDeploymentConfigs) > 0 {
 		fmt.Printf("Batch deploying %d data ZDBs...\n", len(dataDeploymentConfigs))
-		if err := grid.DeploymentDeployer.BatchDeploy(context.TODO(), dataDeploymentConfigs); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := grid.DeploymentDeployer.BatchDeploy(ctx, dataDeploymentConfigs); err != nil {
 			return errors.Wrap(err, "failed to batch deploy data ZDBs")
 		}
 	}
@@ -350,7 +372,7 @@ func deployBackends(cfg *Config) error {
 	// Load all deployed ZDBs (existing and new)
 	metaDeployments := make([]*workloads.ZDB, len(cfg.MetaNodes))
 	for i, nodeID := range cfg.MetaNodes {
-		name := fmt.Sprintf("%s_%s_meta_%d", cfg.DeploymentName, randoms, nodeID)
+		name := fmt.Sprintf("%s_%d_meta_%d", cfg.DeploymentName, twinID, nodeID)
 		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", name, nodeID)
@@ -361,7 +383,7 @@ func deployBackends(cfg *Config) error {
 
 	dataDeployments := make([]*workloads.ZDB, len(cfg.DataNodes))
 	for i, nodeID := range cfg.DataNodes {
-		name := fmt.Sprintf("%s_%s_data_%d", cfg.DeploymentName, randoms, nodeID)
+		name := fmt.Sprintf("%s_%d_data_%d", cfg.DeploymentName, twinID, nodeID)
 		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", name, nodeID)
