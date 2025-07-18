@@ -309,8 +309,8 @@ func deployBackends(cfg *Config) error {
 		fmt.Println("Finished loading, will only deploy missing ZDBs.")
 	}
 
-	// Prepare metadata deployments
-	var metaDeploymentConfigs []*workloads.Deployment
+	// Prepare deployments
+	var deploymentConfigs []*workloads.Deployment
 	for _, nodeID := range cfg.MetaNodes {
 		if existingMetaNodes[nodeID] {
 			fmt.Printf("Skipping metadata deployment on node %d, already exists.\n", nodeID)
@@ -318,19 +318,17 @@ func deployBackends(cfg *Config) error {
 		}
 		name := fmt.Sprintf("%s_%d_meta_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
-			Name:        name,
-			Password:    cfg.Password,
-			Public:      false,
-			SizeGB:      uint64(cfg.MetaSizeGb),
-			Description: "QSFS metadata namespace",
-			Mode:        workloads.ZDBModeUser,
+			Name:		name,
+			Password:	cfg.Password,
+			Public:		false,
+			SizeGB:		uint64(cfg.MetaSizeGb),
+			Description:	"QSFS metadata namespace",
+			Mode:		workloads.ZDBModeUser,
 		}
 		dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-		metaDeploymentConfigs = append(metaDeploymentConfigs, &dl)
+		deploymentConfigs = append(deploymentConfigs, &dl)
 	}
 
-	// Prepare data deployments
-	var dataDeploymentConfigs []*workloads.Deployment
 	for _, nodeID := range cfg.DataNodes {
 		if existingDataNodes[nodeID] {
 			fmt.Printf("Skipping data deployment on node %d, already exists.\n", nodeID)
@@ -338,34 +336,24 @@ func deployBackends(cfg *Config) error {
 		}
 		name := fmt.Sprintf("%s_%d_data_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
-			Name:        name,
-			Password:    cfg.Password,
-			Public:      false,
-			SizeGB:      uint64(cfg.DataSizeGb),
-			Description: "QSFS data namespace",
-			Mode:        workloads.ZDBModeSeq,
+			Name:		name,
+			Password:	cfg.Password,
+			Public:		false,
+			SizeGB:		uint64(cfg.DataSizeGb),
+			Description:	"QSFS data namespace",
+			Mode:		workloads.ZDBModeSeq,
 		}
 		dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-		dataDeploymentConfigs = append(dataDeploymentConfigs, &dl)
+		deploymentConfigs = append(deploymentConfigs, &dl)
 	}
 
-	// Batch deploy metadata ZDBs
-	if len(metaDeploymentConfigs) > 0 {
-		fmt.Printf("Batch deploying %d metadata ZDBs...\n", len(metaDeploymentConfigs))
+	// Batch deploy all ZDBs
+	if len(deploymentConfigs) > 0 {
+		fmt.Printf("Batch deploying %d ZDBs...\n", len(deploymentConfigs))
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		if err := grid.DeploymentDeployer.BatchDeploy(ctx, metaDeploymentConfigs); err != nil {
-			return errors.Wrap(err, "failed to batch deploy metadata ZDBs")
-		}
-	}
-
-	// Batch deploy data ZDBs
-	if len(dataDeploymentConfigs) > 0 {
-		fmt.Printf("Batch deploying %d data ZDBs...\n", len(dataDeploymentConfigs))
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := grid.DeploymentDeployer.BatchDeploy(ctx, dataDeploymentConfigs); err != nil {
-			return errors.Wrap(err, "failed to batch deploy data ZDBs")
+		if err := grid.DeploymentDeployer.BatchDeploy(ctx, deploymentConfigs); err != nil {
+			return errors.Wrap(err, "failed to batch deploy ZDBs")
 		}
 	}
 
