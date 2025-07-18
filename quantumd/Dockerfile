@@ -20,14 +20,22 @@ RUN wget -O /usr/local/bin/zdbfs https://github.com/threefoldtech/0-db-fs/releas
 # Set executable permissions
 RUN chmod +x /usr/local/bin/* /bin/zstor /sbin/zinit
 
+# Download and install mycelium
+RUN wget -O /tmp/mycelium.tar.gz https://github.com/threefoldtech/mycelium/releases/download/v0.6.1/mycelium-x86_64-unknown-linux-musl.tar.gz && \
+    tar -xvf /tmp/mycelium.tar.gz -C /tmp && \
+    mv /tmp/mycelium /usr/local/bin/mycelium
+
+# Create required directories
+RUN mkdir -p /data /mnt/qsfs /var/log /etc/zinit
+
+# Create zinit config for mycelium
+RUN echo "exec: /usr/local/bin/mycelium --peers tcp://185.69.166.82:9651 tcp://65.109.18.113:9651 tcp://5.78.122.16:9651 tcp://5.223.43.251:9651 tcp://142.93.217.194:9651" > /etc/zinit/mycelium.yaml
+
 # Copy pre-built binary and hook symlink
 COPY quantumd /usr/local/bin/quantumd
 COPY quantumd-hook /usr/local/bin/quantumd-hook
 
 # Copy default configuration file (for --local use)
 COPY config.example.yaml /etc/quantumd.yaml
-
-# Create required directories
-RUN mkdir -p /data /mnt/qsfs /var/log /etc/zinit
 
 ENTRYPOINT ["/sbin/zinit", "init"]
