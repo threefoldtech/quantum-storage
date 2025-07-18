@@ -38,7 +38,7 @@ var setupCmd = &cobra.Command{
 	Long: `Downloads binaries and configures services for zstor, zdb and zdbfs.
 With --local flag, sets up a complete local test environment with backend ZDBs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := setupQSFS(); err != nil {
+		if err := setupQSFS(localMode); err != nil {
 			fmt.Printf("Error setting up QSFS: %v\n", err)
 			os.Exit(1)
 		}
@@ -50,13 +50,11 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 }
 
-func setupQSFS() error {
-	// Check if systemd or zinit is available
+func setupQSFS(isLocal bool) error {
 	initSystem, err := detectInitSystem()
 	if err != nil {
 		return fmt.Errorf("failed to detect init system: %w", err)
 	}
-
 	fmt.Printf("Detected init system: %s\n", initSystem)
 
 	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
@@ -64,31 +62,27 @@ func setupQSFS() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Download binaries
 	if err := downloadBinaries(); err != nil {
 		return fmt.Errorf("failed to download binaries: %w", err)
 	}
 
-	// Create directories
 	if err := createDirectories(cfg); err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	// Generate zstor config
-	if localMode {
+	if isLocal {
 		if err := generateLocalZstorConfig(); err != nil {
 			return fmt.Errorf("failed to generate local zstor config: %w", err)
 		}
-	}
-
-	if localMode {
-		// Setup backend ZDBs for local mode
 		if err := setupLocalBackends(initSystem); err != nil {
 			return fmt.Errorf("failed to setup local backends: %w", err)
 		}
 	}
 
-	// Setup services based on init system
+	return setupServices(initSystem, cfg)
+}
+
+func setupServices(initSystem string, cfg *Config) error {
 	switch initSystem {
 	case "systemd":
 		return setupSystemdServices(cfg)
@@ -126,7 +120,6 @@ func renderTemplate(destPath, templateName, serviceType string, cfg *Config) err
 
 func generateZstorConfig(cfg *Config) error {
 	fmt.Println("Generating zstor config...")
-	// Pass an empty serviceType because zstor.conf.template is in the root of the templates directory
 	return renderTemplate("/etc/zstor.toml", "zstor.conf.template", "", cfg)
 }
 
@@ -205,7 +198,6 @@ password = "zdbpassword"
 }
 
 func setupLocalBackends(initSystem string) error {
-	// Create directories for backend ZDBs
 	for i := 1; i <= 4; i++ {
 		dirs := []string{
 			fmt.Sprintf("/data/data%d", i),
@@ -218,7 +210,6 @@ func setupLocalBackends(initSystem string) error {
 		}
 	}
 
-	// Setup backend ZDB services
 	switch initSystem {
 	case "systemd":
 		return setupLocalSystemdBackends()
@@ -288,14 +279,12 @@ func setupLocalZinitBackends() error {
 			return fmt.Errorf("failed to monitor service zdb-back%d: %w", i+1, err)
 		}
 	}
-	// Wait for ZDB to start up
 	time.Sleep(2 * time.Second)
 	return initNamespaces()
 }
 
 func initNamespaces() error {
 	for port := 9901; port <= 9904; port++ {
-		// Data namespace
 		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("data%d", port-9900)).Run(); err != nil {
 			return fmt.Errorf("failed to create data namespace on port %d: %w", port, err)
 		}
@@ -306,7 +295,6 @@ func initNamespaces() error {
 			return err
 		}
 
-		// Meta namespace
 		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("meta%d", port-9900)).Run(); err != nil {
 			return fmt.Errorf("failed to create meta namespace on port %d: %w", port, err)
 		}
@@ -318,7 +306,6 @@ func initNamespaces() error {
 }
 
 func detectInitSystem() (string, error) {
-	// First check if systemd is actually running as PID 1
 	if _, err := os.Stat("/proc/1/comm"); err == nil {
 		if comm, err := os.ReadFile("/proc/1/comm"); err == nil {
 			if strings.TrimSpace(string(comm)) == "systemd" {
@@ -327,7 +314,6 @@ func detectInitSystem() (string, error) {
 		}
 	}
 
-	// Fall back to checking for zinit
 	if _, err := exec.LookPath("zinit"); err == nil {
 		return "zinit", nil
 	}
@@ -343,28 +329,21 @@ func getBinaryVersion(binaryPath string) (string, error) {
 	cmd := exec.Command(binaryPath, "--version")
 	output, err := cmd.CombinedOutput()
 
-	// zdbfs exits with code 1, so ignore that here
 	if err != nil && !strings.Contains(err.Error(), "exit status") {
 		return "", fmt.Errorf("failed to get version: %w", err)
 	}
 
 	outputStr := string(output)
 
-	// Helper function to clean version string
 	cleanVersion := func(s string) string {
-		// Remove ANSI escape sequences
 		re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 		s = re.ReplaceAllString(s, "")
-		// Remove other control characters
 		s = strings.TrimSpace(s)
-		// Remove any trailing quotes or brackets
 		s = strings.Trim(s, "'\"[]")
 		return s
 	}
 
-	// Parse version based on binary type
 	if strings.Contains(binaryPath, "zdb") && !strings.Contains(binaryPath, "zdbfs") {
-		// zdb format: "0-db engine, v2.0.8 (commit 2.0.8)"
 		if strings.Contains(outputStr, "v") {
 			parts := strings.Split(outputStr, "v")
 			if len(parts) > 1 {
@@ -373,7 +352,6 @@ func getBinaryVersion(binaryPath string) (string, error) {
 			}
 		}
 	} else if strings.Contains(binaryPath, "zdbfs") {
-		// zdbfs format: "[+] initializing zdbfs v0.1.12"
 		if strings.Contains(outputStr, "zdbfs v") {
 			parts := strings.Split(outputStr, "zdbfs v")
 			if len(parts) > 1 {
@@ -382,7 +360,6 @@ func getBinaryVersion(binaryPath string) (string, error) {
 			}
 		}
 	} else if strings.Contains(binaryPath, "zstor") {
-		// zstor format: "zstor_v2 0.4.0"
 		parts := strings.Fields(outputStr)
 		if len(parts) >= 2 {
 			return cleanVersion(strings.TrimPrefix(parts[1], "v")), nil
@@ -481,7 +458,6 @@ func createDirectories(cfg *Config) error {
 }
 
 func setupSystemdServices(cfg *Config) error {
-	// Template-based services
 	templatedServices := []string{"zdb", "zstor", "zdbfs", "quantumd"}
 	for _, name := range templatedServices {
 		err := renderTemplate(
@@ -495,7 +471,6 @@ func setupSystemdServices(cfg *Config) error {
 		}
 	}
 
-	// Reload systemd and enable services
 	cmd := exec.Command("systemctl", "daemon-reload")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w", err)
@@ -532,7 +507,6 @@ func setupZinitServices(cfg *Config) error {
 		}
 	}
 
-	// Start monitoring services
 	for _, name := range services {
 		cmd := exec.Command("zinit", "monitor", name)
 		if err := cmd.Run(); err != nil {

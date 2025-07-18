@@ -12,9 +12,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-proxy/pkg/types"
 	bip39 "github.com/tyler-smith/go-bip39"
 )
 
@@ -88,117 +87,25 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-type deploymentInfo struct {
-	Contract       types.Contract
-	DeploymentName string
-}
-
-func getContracts(grid *deployer.TFPluginClient, twinID uint64) ([]deploymentInfo, error) {
-	allContracts := make([]types.Contract, 0)
-	page := uint64(1)
-	const pageSize = 100
-
-	filter := types.ContractFilter{
-		TwinID: &twinID,
-		State:  []string{"Created"},
-	}
-
-	for {
-		limit := types.Limit{
-			Size: pageSize,
-			Page: page,
-		}
-
-		contracts, _, err := grid.GridProxyClient.Contracts(context.Background(), filter, limit)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to query contracts page %d", page)
-		}
-
-		allContracts = append(allContracts, contracts...)
-
-		if len(contracts) < pageSize {
-			break
-		}
-
-		page++
-	}
-
-	var deploymentContracts []deploymentInfo
-	for _, contract := range allContracts {
-		if contract.Type != "node" {
-			continue
-		}
-
-		var name string
-		var deploymentData string
-
-		// Handle both possible types for contract.Details
-		if details, ok := contract.Details.(types.NodeContractDetails); ok {
-			deploymentData = details.DeploymentData
-		} else if details, ok := contract.Details.(map[string]interface{}); ok {
-			if dd, ok := details["deployment_data"].(string); ok {
-				deploymentData = dd
-			}
-		}
-
-		if deploymentData != "" {
-			var data struct {
-				Name string `json:"name"`
-			}
-			if err := json.Unmarshal([]byte(deploymentData), &data); err == nil {
-				name = data.Name
-			}
-		}
-
-		if name != "" {
-			deploymentContracts = append(deploymentContracts, deploymentInfo{
-				Contract:       contract,
-				DeploymentName: name,
-			})
-		}
-	}
-
-	return deploymentContracts, nil
-}
-
 func destroyBackends(cfg *Config) error {
 	if cfg.DeploymentName == "" {
 		return errors.New("deployment_name is required in config for destroying")
 	}
 
-	relay := "wss://relay.grid.tf"
 	network := Network
 	if cfg.Network != "" {
 		network = cfg.Network
 	}
-	if network != "main" {
-		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
-	}
 
-	grid, err := deployer.NewTFPluginClient(cfg.Mnemonic,
-		deployer.WithRelayURL(relay),
-		deployer.WithNetwork(network),
-		deployer.WithRMBTimeout(100))
+	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	twinID := uint64(grid.TwinID)
-	contracts, err := getContracts(&grid, twinID)
+	twinID := uint64(gridClient.TwinID)
+	contractsToCancel, err := grid.GetDeploymentContracts(&gridClient, twinID, cfg.DeploymentName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query contracts for twin %d", twinID)
-	}
-
-	var contractsToCancel []types.Contract
-	for _, contractInfo := range contracts {
-		name := contractInfo.DeploymentName
-		expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, twinID)
-		if strings.HasPrefix(name, expectedPrefix) {
-			parts := strings.Split(name, "_")
-			if len(parts) == 4 && (parts[2] == "meta" || parts[2] == "data") {
-				contractsToCancel = append(contractsToCancel, contractInfo.Contract)
-			}
-		}
 	}
 
 	if len(contractsToCancel) == 0 {
@@ -210,7 +117,7 @@ func destroyBackends(cfg *Config) error {
 
 	for _, contract := range contractsToCancel {
 		fmt.Printf("Destroying deployment with contract ID %d\n", contract.ContractID)
-		if err := grid.SubstrateConn.CancelContract(grid.Identity, uint64(contract.ContractID)); err != nil {
+		if err := gridClient.SubstrateConn.CancelContract(gridClient.Identity, uint64(contract.ContractID)); err != nil {
 			fmt.Printf("warn: failed to destroy deployment with contract ID %d: %v\n", contract.ContractID, err)
 		} else {
 			fmt.Printf("Destroyed deployment with contract ID %d\n", contract.ContractID)
@@ -222,23 +129,19 @@ func destroyBackends(cfg *Config) error {
 
 func deployBackends(cfg *Config) error {
 	// Create grid client
-	relay := "wss://relay.grid.tf"
 	network := Network
 	if cfg.Network != "" {
 		network = cfg.Network
 	}
-	if network != "main" {
-		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
-	}
-	grid, err := deployer.NewTFPluginClient(cfg.Mnemonic, deployer.WithRelayURL(relay), deployer.WithNetwork(network))
+	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	twinID := uint64(grid.TwinID)
+	twinID := uint64(gridClient.TwinID)
 
 	// Load existing deployments into state
-	contracts, err := getContracts(&grid, twinID)
+	contracts, err := grid.GetContracts(&gridClient, twinID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query for existing contracts for twin %d", twinID)
 	}
@@ -264,10 +167,10 @@ func deployBackends(cfg *Config) error {
 			}
 
 			// First, store the contract ID in the state
-			grid.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
+			gridClient.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
 
 			// This loads the deployment into grid.State
-			if _, err := grid.State.LoadDeploymentFromGrid(context.Background(), uint32(nodeID), name); err != nil {
+			if _, err := gridClient.State.LoadDeploymentFromGrid(context.Background(), uint32(nodeID), name); err != nil {
 				fmt.Printf("warn: could not load deployment '%s' from grid: %v\n", name, err)
 				continue
 			}
@@ -276,9 +179,9 @@ func deployBackends(cfg *Config) error {
 
 	existingMetaNodes := make(map[uint32]bool)
 	existingDataNodes := make(map[uint32]bool)
-	for nodeID, contractIDs := range grid.State.CurrentNodeDeployments {
+	for nodeID, contractIDs := range gridClient.State.CurrentNodeDeployments {
 		for _, contractID := range contractIDs {
-			contract, err := grid.SubstrateConn.GetContract(contractID)
+			contract, err := gridClient.SubstrateConn.GetContract(contractID)
 			if err != nil {
 				continue
 			}
@@ -318,12 +221,12 @@ func deployBackends(cfg *Config) error {
 		}
 		name := fmt.Sprintf("%s_%d_meta_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
-			Name:		name,
-			Password:	cfg.Password,
-			Public:		false,
-			SizeGB:		uint64(cfg.MetaSizeGb),
-			Description:	"QSFS metadata namespace",
-			Mode:		workloads.ZDBModeUser,
+			Name:        name,
+			Password:    cfg.Password,
+			Public:      false,
+			SizeGB:      uint64(cfg.MetaSizeGb),
+			Description: "QSFS metadata namespace",
+			Mode:        workloads.ZDBModeUser,
 		}
 		dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		deploymentConfigs = append(deploymentConfigs, &dl)
@@ -336,12 +239,12 @@ func deployBackends(cfg *Config) error {
 		}
 		name := fmt.Sprintf("%s_%d_data_%d", cfg.DeploymentName, twinID, nodeID)
 		zdb := workloads.ZDB{
-			Name:		name,
-			Password:	cfg.Password,
-			Public:		false,
-			SizeGB:		uint64(cfg.DataSizeGb),
-			Description:	"QSFS data namespace",
-			Mode:		workloads.ZDBModeSeq,
+			Name:        name,
+			Password:    cfg.Password,
+			Public:      false,
+			SizeGB:      uint64(cfg.DataSizeGb),
+			Description: "QSFS data namespace",
+			Mode:        workloads.ZDBModeSeq,
 		}
 		dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
 		deploymentConfigs = append(deploymentConfigs, &dl)
@@ -352,7 +255,7 @@ func deployBackends(cfg *Config) error {
 		fmt.Printf("Batch deploying %d ZDBs...\n", len(deploymentConfigs))
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		if err := grid.DeploymentDeployer.BatchDeploy(ctx, deploymentConfigs); err != nil {
+		if err := gridClient.DeploymentDeployer.BatchDeploy(ctx, deploymentConfigs); err != nil {
 			return errors.Wrap(err, "failed to batch deploy ZDBs")
 		}
 	}
@@ -361,7 +264,7 @@ func deployBackends(cfg *Config) error {
 	metaDeployments := make([]*workloads.ZDB, len(cfg.MetaNodes))
 	for i, nodeID := range cfg.MetaNodes {
 		name := fmt.Sprintf("%s_%d_meta_%d", cfg.DeploymentName, twinID, nodeID)
-		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
+		resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed metadata ZDB '%s' from node %d", name, nodeID)
 		}
@@ -372,7 +275,7 @@ func deployBackends(cfg *Config) error {
 	dataDeployments := make([]*workloads.ZDB, len(cfg.DataNodes))
 	for i, nodeID := range cfg.DataNodes {
 		name := fmt.Sprintf("%s_%d_data_%d", cfg.DeploymentName, twinID, nodeID)
-		resZDB, err := grid.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
+		resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed data ZDB '%s' from node %d", name, nodeID)
 		}
