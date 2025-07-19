@@ -26,6 +26,6 @@ func main() {
 		os.Args = append([]string{os.Args[0], "hook"}, os.Args[1:]...)
 	}
 
-	cmd.SetAssets(assets, assets)
+	cmd.SetAssets(assets)
 	cmd.Execute()
 }

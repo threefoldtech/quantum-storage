@@ -1,16 +1,15 @@
 package cmd
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"text/template"
 	"time"
+
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 
 	"github.com/spf13/cobra"
 )
@@ -22,14 +21,16 @@ const (
 )
 
 var (
-	localMode      bool
-	SystemdAssets  embed.FS
+	// localMode is a flag for the setup command
+	localMode bool
+	// TemplateAssets are embedded files
 	TemplateAssets embed.FS
 )
 
-func SetAssets(systemd, templates embed.FS) {
-	SystemdAssets = systemd
+// SetAssets populates the embedded file systems
+func SetAssets(templates embed.FS) {
 	TemplateAssets = templates
+	service.TemplateAssets = templates
 }
 
 var setupCmd = &cobra.Command{
@@ -45,82 +46,107 @@ With --local flag, sets up a complete local test environment with backend ZDBs.`
 	},
 }
 
+var startCmd = &cobra.Command{
+	Use:   "start [service]",
+	Short: "Start a single service",
+	Long:  `Starts a single QSFS service (zdb, zstor, zdbfs, quantumd).`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		serviceName := args[0]
+		if err := startService(serviceName); err != nil {
+			fmt.Printf("Error starting service %s: %v\n", serviceName, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Service %s started successfully.\n", serviceName)
+	},
+}
+
 func init() {
 	setupCmd.Flags().BoolVarP(&localMode, "local", "l", false, "Setup local test environment with backend ZDBs")
 	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(startCmd)
 }
 
 func setupQSFS(isLocal bool) error {
-	initSystem, err := detectInitSystem()
-	if err != nil {
-		return fmt.Errorf("failed to detect init system: %w", err)
-	}
-	fmt.Printf("Detected init system: %s\n", initSystem)
-
 	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		// In local mode, a config file is not strictly required.
+		// We can proceed with a default config.
+		if isLocal && os.IsNotExist(err) {
+			cfg = &Config{
+				QsfsMountpoint: "/mnt/qsfs",
+				ZdbRootPath:    "/var/lib/zdb",
+				CachePath:      "/var/cache/zdbfs",
+				Password:       "zdbpassword",
+				MinShards:      2,
+				ExpectedShards: 4,
+			}
+		} else {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+	// The service config needs to be converted to the one in the service package
+	serviceCfg := &service.Config{
+		Network:        cfg.Network,
+		Mnemonic:       cfg.Mnemonic,
+		DeploymentName: cfg.DeploymentName,
+		MetaNodes:      cfg.MetaNodes,
+		DataNodes:      cfg.DataNodes,
+		Password:       cfg.Password,
+		MetaSizeGb:     cfg.MetaSizeGb,
+		DataSizeGb:     cfg.DataSizeGb,
+		MinShards:      cfg.MinShards,
+		ExpectedShards: cfg.ExpectedShards,
+		ZdbRootPath:    cfg.ZdbRootPath,
+		QsfsMountpoint: cfg.QsfsMountpoint,
+		CachePath:      cfg.CachePath,
+		RetryInterval:  cfg.RetryInterval,
+		DatabasePath:   cfg.DatabasePath,
+		MetaBackends:   []service.Backend{},
+		DataBackends:   []service.Backend{},
 	}
 
-	if err := downloadBinaries(); err != nil {
-		return fmt.Errorf("failed to download binaries: %w", err)
+	if err := service.Setup(serviceCfg, isLocal); err != nil {
+		return err
 	}
 
-	if err := createDirectories(cfg); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
+	sm, err := service.NewServiceManager()
+	if err != nil {
+		return fmt.Errorf("failed to get service manager: %w", err)
+	}
+
+	servicesToStart := []string{"zdb", "zstor", "zdbfs", "quantumd"}
+	if isLocal {
+		servicesToStart = append([]string{"zdb-back1", "zdb-back2", "zdb-back3", "zdb-back4"}, servicesToStart...)
+	}
+
+	for _, srv := range servicesToStart {
+		fmt.Printf("Enabling and starting service %s...\n", srv)
+		if err := sm.EnableService(srv); err != nil {
+			fmt.Printf("warn: failed to enable service %s: %v\n", srv, err)
+		}
+		if err := sm.StartService(srv); err != nil {
+			return fmt.Errorf("failed to start service %s: %w", srv, err)
+		}
 	}
 
 	if isLocal {
-		if err := generateLocalZstorConfig(); err != nil {
-			return fmt.Errorf("failed to generate local zstor config: %w", err)
-		}
-		if err := setupLocalBackends(initSystem); err != nil {
-			return fmt.Errorf("failed to setup local backends: %w", err)
+		time.Sleep(2 * time.Second) // Give time for backends to start
+		if err := initNamespaces(); err != nil {
+			return fmt.Errorf("failed to initialize local namespaces: %w", err)
 		}
 	}
 
-	return setupServices(initSystem, cfg)
+	fmt.Println("Setup completed successfully.")
+	return nil
 }
 
-func setupServices(initSystem string, cfg *Config) error {
-	switch initSystem {
-	case "systemd":
-		return setupSystemdServices(cfg)
-	case "zinit":
-		return setupZinitServices(cfg)
-	default:
-		return fmt.Errorf("unsupported init system: %s", initSystem)
-	}
-}
-
-func renderTemplate(destPath, templateName, serviceType string, cfg *Config) error {
-	var templatePath string
-	if serviceType == "" {
-		templatePath = filepath.Join("assets/templates", templateName)
-	} else {
-		templatePath = filepath.Join("assets/templates", serviceType, templateName)
-	}
-	templateContent, err := TemplateAssets.ReadFile(templatePath)
+func startService(name string) error {
+	sm, err := service.NewServiceManager()
 	if err != nil {
-		return fmt.Errorf("failed to read embedded template %s: %w", templatePath, err)
+		return fmt.Errorf("failed to get service manager: %w", err)
 	}
-
-	tmpl, err := template.New(templateName).Parse(string(templateContent))
-	if err != nil {
-		return fmt.Errorf("failed to parse template %s: %w", templateName, err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return fmt.Errorf("failed to execute template %s: %w", templateName, err)
-	}
-
-	return os.WriteFile(destPath, buf.Bytes(), 0644)
-}
-
-func generateZstorConfig(cfg *Config) error {
-	fmt.Println("Generating zstor config...")
-	return renderTemplate("/etc/zstor.toml", "zstor.conf.template", "", cfg)
+	return sm.StartService(name)
 }
 
 func generateLocalZstorConfig() error {
@@ -197,128 +223,29 @@ password = "zdbpassword"
 	return os.WriteFile("/etc/zstor.toml", []byte(config), 0644)
 }
 
-func setupLocalBackends(initSystem string) error {
-	for i := 1; i <= 4; i++ {
-		dirs := []string{
-			fmt.Sprintf("/data/data%d", i),
-			fmt.Sprintf("/data/index%d", i),
-		}
-		for _, dir := range dirs {
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", dir, err)
-			}
-		}
-	}
-
-	switch initSystem {
-	case "systemd":
-		return setupLocalSystemdBackends()
-	case "zinit":
-		return setupLocalZinitBackends()
-	default:
-		return fmt.Errorf("unsupported init system for local backends: %s", initSystem)
-	}
-}
-
-func setupLocalSystemdBackends() error {
-	for i, port := range []int{9901, 9902, 9903, 9904} {
-		service := fmt.Sprintf(`[Unit]
-Description=Local ZDB Backend %d
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/zdb \
-    --port=%d \
-    --data=/data/data%d \
-    --index=/data/index%d \
-    --logfile=/var/log/zdb%d.log \
-    --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
-    --rotate 900
-Restart=always
-RestartSec=5
-TimeoutStopSec=60
-
-[Install]
-WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1)
-
-		path := fmt.Sprintf("/etc/systemd/system/zdb-back%d.service", i+1)
-		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
-		}
-
-		cmd := exec.Command("systemctl", "daemon-reload")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to reload systemd: %w", err)
-		}
-
-		cmd = exec.Command("systemctl", "enable", "--now", fmt.Sprintf("zdb-back%d", i+1))
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to enable service zdb-back%d: %w", i+1, err)
-		}
-	}
-	return initNamespaces()
-}
-
-func setupLocalZinitBackends() error {
-	for i, port := range []int{9901, 9902, 9903, 9904} {
-		service := fmt.Sprintf(`exec: |
-  /usr/local/bin/zdb
-    --port %d
-    --data /data/data%d
-    --index /data/index%d
-    --logfile /var/log/zdb%d.log`, port, i+1, i+1, i+1)
-
-		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
-		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
-		}
-
-		cmd := exec.Command("zinit", "monitor", fmt.Sprintf("zdb-back%d", i+1))
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to monitor service zdb-back%d: %w", i+1, err)
-		}
-	}
-	time.Sleep(2 * time.Second)
-	return initNamespaces()
-}
-
 func initNamespaces() error {
-	for port := 9901; port <= 9904; port++ {
-		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("data%d", port-9900)).Run(); err != nil {
-			return fmt.Errorf("failed to create data namespace on port %d: %w", port, err)
+	for i := 1; i <= 4; i++ {
+		port := 9900 + i
+		// Create data namespace
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("data%d", i)).Run(); err != nil {
+			fmt.Printf("warn: failed to create data namespace on port %d: %v\n", port, err)
 		}
-		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", port-9900), "password", "zdbpassword").Run(); err != nil {
-			return err
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", i), "password", "zdbpassword").Run(); err != nil {
+			fmt.Printf("warn: failed to set password for data namespace on port %d: %v\n", port, err)
 		}
-		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", port-9900), "mode", "seq").Run(); err != nil {
-			return err
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("data%d", i), "mode", "seq").Run(); err != nil {
+			fmt.Printf("warn: failed to set mode for data namespace on port %d: %v\n", port, err)
 		}
 
-		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("meta%d", port-9900)).Run(); err != nil {
-			return fmt.Errorf("failed to create meta namespace on port %d: %w", port, err)
+		// Create meta namespace
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSNEW", fmt.Sprintf("meta%d", i)).Run(); err != nil {
+			fmt.Printf("warn: failed to create meta namespace on port %d: %v\n", port, err)
 		}
-		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("meta%d", port-9900), "password", "zdbpassword").Run(); err != nil {
-			return err
+		if err := exec.Command("redis-cli", "-p", fmt.Sprint(port), "NSSET", fmt.Sprintf("meta%d", i), "password", "zdbpassword").Run(); err != nil {
+			fmt.Printf("warn: failed to set password for meta namespace on port %d: %v\n", port, err)
 		}
 	}
 	return nil
-}
-
-func detectInitSystem() (string, error) {
-	if _, err := os.Stat("/proc/1/comm"); err == nil {
-		if comm, err := os.ReadFile("/proc/1/comm"); err == nil {
-			if strings.TrimSpace(string(comm)) == "systemd" {
-				return "systemd", nil
-			}
-		}
-	}
-
-	if _, err := exec.LookPath("zinit"); err == nil {
-		return "zinit", nil
-	}
-
-	return "", fmt.Errorf("no supported init system found")
 }
 
 func getBinaryVersion(binaryPath string) (string, error) {
@@ -447,6 +374,11 @@ func createDirectories(cfg *Config) error {
 		cfg.ZdbRootPath,
 		"/var/log",
 	}
+	if localMode {
+		for i := 1; i <= 4; i++ {
+			dirs = append(dirs, fmt.Sprintf("/data/data%d", i), fmt.Sprintf("/data/index%d", i))
+		}
+	}
 
 	for _, dir := range dirs {
 		fmt.Printf("Creating directory %s...\n", dir)
@@ -454,65 +386,5 @@ func createDirectories(cfg *Config) error {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
-	return nil
-}
-
-func setupSystemdServices(cfg *Config) error {
-	templatedServices := []string{"zdb", "zstor", "zdbfs", "quantumd"}
-	for _, name := range templatedServices {
-		err := renderTemplate(
-			fmt.Sprintf("/etc/systemd/system/%s.service", name),
-			fmt.Sprintf("%s.service.template", name),
-			"systemd",
-			cfg,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	cmd := exec.Command("systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to reload systemd: %w", err)
-	}
-
-	allServices := []string{"zdb", "zstor", "zdbfs", "quantumd"}
-	for _, name := range allServices {
-		cmd := exec.Command("systemctl", "enable", "--now", name)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to enable service %s: %w", name, err)
-		}
-	}
-
-	return nil
-}
-
-func setupZinitServices(cfg *Config) error {
-	services := []string{"zstor", "zdb", "zdbfs", "quantumd"}
-	zinitDir := "/etc/zinit"
-
-	if err := os.MkdirAll(zinitDir, 0755); err != nil {
-		return fmt.Errorf("failed to create zinit directory: %w", err)
-	}
-
-	for _, name := range services {
-		err := renderTemplate(
-			filepath.Join(zinitDir, name+".yaml"),
-			name+".yaml.template",
-			"zinit",
-			cfg,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, name := range services {
-		cmd := exec.Command("zinit", "monitor", name)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to monitor service %s: %w", name, err)
-		}
-	}
-
 	return nil
 }

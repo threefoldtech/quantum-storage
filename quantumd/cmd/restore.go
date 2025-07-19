@@ -7,10 +7,12 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
 )
 
@@ -88,6 +90,7 @@ func runRestore() error {
 			continue
 		}
 
+		gridClient.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
 		resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), uint32(nodeID), name, name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load deployed ZDB '%s' from node %d", name, nodeID)
@@ -114,8 +117,45 @@ func runRestore() error {
 
 	// 4. Setup local machine (binaries, directories, services)
 	fmt.Println("Setting up local machine...")
-	if err := setupQSFS(false); err != nil { // false for not local
+	serviceCfg := &service.Config{
+		Network:        cfg.Network,
+		Mnemonic:       cfg.Mnemonic,
+		DeploymentName: cfg.DeploymentName,
+		MetaNodes:      cfg.MetaNodes,
+		DataNodes:      cfg.DataNodes,
+		Password:       cfg.Password,
+		MetaSizeGb:     cfg.MetaSizeGb,
+		DataSizeGb:     cfg.DataSizeGb,
+		MinShards:      cfg.MinShards,
+		ExpectedShards: cfg.ExpectedShards,
+		ZdbRootPath:    cfg.ZdbRootPath,
+		QsfsMountpoint: cfg.QsfsMountpoint,
+		CachePath:      cfg.CachePath,
+		RetryInterval:  cfg.RetryInterval,
+		DatabasePath:   cfg.DatabasePath,
+		MetaBackends:   []service.Backend{},
+		DataBackends:   []service.Backend{},
+	}
+
+	if err := service.Setup(serviceCfg, false); err != nil { // false for not local
 		return errors.Wrap(err, "failed to perform local machine setup")
+	}
+
+	sm, err := service.NewServiceManager()
+	if err != nil {
+		return err
+	}
+
+	// Start zdb and zstor first
+	for _, srv := range []string{"zdb", "zstor"} {
+		if err := sm.StartService(srv); err != nil {
+			return fmt.Errorf("failed to start service %s: %w", srv, err)
+		}
+	}
+
+	// Wait for services to be ready
+	if err := waitForServices(); err != nil {
+		return errors.Wrap(err, "services did not start in time")
 	}
 
 	// 5. Perform recovery steps from script
@@ -124,8 +164,48 @@ func runRestore() error {
 		return errors.Wrap(err, "failed to recover data")
 	}
 
+	// 6. Start zdbfs service
+	fmt.Println("Starting ZDBFS service...")
+	if err := sm.StartService("zdbfs"); err != nil {
+		return errors.Wrap(err, "failed to start zdbfs service")
+	}
+
 	fmt.Println("Restore process completed successfully!")
 	return nil
+}
+
+func waitForServices() error {
+	fmt.Println("Waiting for services to initialize...")
+	timeout := time.After(30 * time.Second)
+	tick := time.NewTicker(1 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timed out waiting for services")
+		case <-tick.C:
+			// Check for zdb
+			zdbReady := false
+			cmd := exec.Command("redis-cli", "-p", "9900", "PING")
+			output, err := cmd.CombinedOutput()
+			if err == nil && strings.TrimSpace(string(output)) == "PONG" {
+				zdbReady = true
+			}
+
+			// Check for zstor
+			zstorReady := false
+			cmdZstor := exec.Command("zstor", "-c", ConfigOutPath, "test")
+			if err := cmdZstor.Run(); err == nil {
+				zstorReady = true
+			}
+
+			if zdbReady && zstorReady {
+				fmt.Println("Services are ready.")
+				return nil
+			}
+		}
+	}
 }
 
 func recoverData(cfg *Config) error {
@@ -160,9 +240,21 @@ func recoverData(cfg *Config) error {
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
 	}
-	if err := redisCmd("NSNEW", "zdbfs-temp"); err != nil {
-		return errors.Wrap(err, "failed to create temp namespace")
+
+	// Check if namespace exists before creating
+	nsInfoCmd := exec.Command("redis-cli", "-p", "9900", "NSINFO", "zdbfs-temp")
+	output, err := nsInfoCmd.CombinedOutput()
+	if err != nil && strings.Contains(string(output), "namespace not found") {
+		fmt.Println("Temporary namespace 'zdbfs-temp' not found, creating it...")
+		if err := redisCmd("NSNEW", "zdbfs-temp"); err != nil {
+			return errors.Wrap(err, "failed to create temp namespace")
+		}
+	} else if err != nil {
+		return errors.Wrapf(err, "failed to check for temp namespace: %s", string(output))
+	} else {
+		fmt.Println("Temporary namespace 'zdbfs-temp' already exists.")
 	}
+
 	if err := redisCmd("NSSET", "zdbfs-temp", "password", "hello"); err != nil {
 		return errors.Wrap(err, "failed to set temp namespace password")
 	}
@@ -223,19 +315,12 @@ func recoverData(cfg *Config) error {
 
 	// g. Start zdbfs service
 	fmt.Println("Starting ZDBFS service...")
-	initSystem, err := detectInitSystem()
+	sm, err := service.NewServiceManager()
 	if err != nil {
 		return err
 	}
-	switch initSystem {
-	case "systemd":
-		if err := exec.Command("systemctl", "start", "zdbfs").Run(); err != nil {
-			return errors.Wrap(err, "failed to start zdbfs service with systemd")
-		}
-	case "zinit":
-		if err := exec.Command("zinit", "monitor", "zdbfs").Run(); err != nil {
-			return errors.Wrap(err, "failed to start zdbfs service with zinit")
-		}
+	if err := sm.StartService("zdbfs"); err != nil {
+		return errors.Wrap(err, "failed to start zdbfs service")
 	}
 
 	return nil
