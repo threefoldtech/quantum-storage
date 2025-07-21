@@ -21,6 +21,7 @@ import (
 const (
 	defaultRetryInterval = 10 * time.Minute
 	uploadedDataFiles    = "uploaded_data_files"
+	socketPath           = "/tmp/zdb-hook.sock"
 )
 
 var rootCmd = &cobra.Command{
@@ -49,7 +50,7 @@ var rootCmd = &cobra.Command{
 					QsfsMountpoint: "/mnt/qsfs",
 					ZdbRootPath:    "/var/lib/zdb",
 					CachePath:      "/var/cache/zdbfs",
-					Password:    "zdbpassword",
+					Password:       "zdbpassword",
 					MinShards:      2,
 					ExpectedShards: 4,
 				}
@@ -871,5 +872,3 @@ last_retry_run_time %d
 	curlCmd.Stdin = strings.NewReader(metrics)
 	curlCmd.Run()
 }
-
-const socketPath = "/tmp/zdb-hook.sock"
