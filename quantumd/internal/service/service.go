@@ -1,5 +1,3 @@
-
-
 package service
 
 import (
@@ -182,7 +180,7 @@ func (z *ZinitManager) EnableService(name string) error {
 }
 
 func (z *ZinitManager) DisableService(name string) error {
-	return exec.Command("zinit", "unmonitor", name).Run()
+	return exec.Command("zinit", "forget", name).Run()
 }
 
 func (z *ZinitManager) StopService(name string) error {
