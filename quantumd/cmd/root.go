@@ -20,7 +20,6 @@ import (
 
 const (
 	defaultRetryInterval = 10 * time.Minute
-	uploadedDataFiles    = "uploaded_data_files"
 	socketPath           = "/tmp/zdb-hook.sock"
 )
 
@@ -454,61 +453,6 @@ type retryManager struct {
 	uploadTracker *uploadTracker
 }
 
-func (ut *uploadTracker) MigrateFromTextFile(textFilePath string) error {
-	if _, err := os.Stat(textFilePath); os.IsNotExist(err) {
-		// No text file to migrate
-		return nil
-	}
-
-	content, err := os.ReadFile(textFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read text file: %w", err)
-	}
-
-	lines := strings.Split(string(content), "\n")
-	migrated := 0
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
-
-		filePath := parts[0]
-		hash := parts[1]
-
-		// Get file size if file exists
-		var fileSize int64
-		if info, err := os.Stat(filePath); err == nil {
-			fileSize = info.Size()
-		}
-
-		// Insert into database
-		if err := ut.MarkUploaded(filePath, hash, fileSize); err != nil {
-			log.Printf("Failed to migrate %s: %v", filePath, err)
-			continue
-		}
-		migrated++
-	}
-
-	if migrated > 0 {
-		log.Printf("Migrated %d entries from text file to SQLite", migrated)
-
-		// Optionally backup the old text file
-		backupPath := textFilePath + ".backup"
-		if err := os.Rename(textFilePath, backupPath); err != nil {
-			log.Printf("Failed to backup text file: %v", err)
-		}
-	}
-
-	return nil
-}
-
 func newUploadTracker(dbPath string) (*uploadTracker, error) {
 	// Ensure directory exists
 	dbDir := filepath.Dir(dbPath)
@@ -635,14 +579,6 @@ func newRetryManager(handler *hookHandler, interval time.Duration, dbPath string
 	uploadTracker, err := newUploadTracker(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload tracker: %w", err)
-	}
-
-	// Migrate from old text file if it exists
-	dataDir := filepath.Dir(handler.zstorData)
-	textFilePath := filepath.Join(dataDir, uploadedDataFiles)
-	if err := uploadTracker.MigrateFromTextFile(textFilePath); err != nil {
-		log.Printf("Failed to migrate from text file: %v", err)
-		// Continue anyway, this is not fatal
 	}
 
 	if interval <= 0 {
