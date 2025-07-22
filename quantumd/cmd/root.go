@@ -754,11 +754,11 @@ func (rm *retryManager) checkAndUploadFile(file, key string) {
 
 		// Track uploaded data files
 		if strings.Contains(remoteFile, "/data/") {
-			rm.markDataFileUploaded(remoteFile, localHash)
+			rm.markDataFileUploaded(file, remoteFile, localHash)
 		}
 	} else if remoteHash == localHash && strings.Contains(remoteFile, "/data/") {
 		// Already uploaded, mark it
-		rm.markDataFileUploaded(remoteFile, localHash)
+		rm.markDataFileUploaded(file, remoteFile, localHash)
 	}
 }
 func (rm *retryManager) getRemoteHash(file string) string {
@@ -789,19 +789,20 @@ func (rm *retryManager) getLocalHash(file string) string {
 	return ""
 }
 
-func (rm *retryManager) markDataFileUploaded(file, hash string) {
-	fileInfo, err := os.Stat(file)
+func (rm *retryManager) markDataFileUploaded(localFile, remoteFile, hash string) {
+	fileInfo, err := os.Stat(localFile)
 	if err != nil {
 		// The file might get removed by zstor while we're in progress. We
 		// should still try to mark the original file as uploaded. We can't get
 		// the size, so we'll use 0.
-		if err := rm.uploadTracker.MarkUploaded(file, hash, 0); err != nil {
-			log.Printf("Failed to mark file as uploaded: %v", err)
+		log.Printf("Could not stat file %s, assuming it was uploaded and removed: %v", localFile, err)
+		if err := rm.uploadTracker.MarkUploaded(remoteFile, hash, 0); err != nil {
+			log.Printf("Failed to mark file as uploaded after stat error: %v", err)
 		}
 		return
 	}
 
-	if err := rm.uploadTracker.MarkUploaded(file, hash, fileInfo.Size()); err != nil {
+	if err := rm.uploadTracker.MarkUploaded(remoteFile, hash, fileInfo.Size()); err != nil {
 		log.Printf("Failed to mark file as uploaded: %v", err)
 	}
 }
