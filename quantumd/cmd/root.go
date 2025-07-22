@@ -386,7 +386,7 @@ func (h *hookHandler) handleJumpIndex(indexPath string, dirtyIndices []string) e
 	}
 
 	// Create a temporary directory to stage the files for upload
-	tmpDir, err := os.MkdirTemp("/tmp", "zdb.hook.tmp.XXXXXXXX")
+	tmpDir, err := os.MkdirTemp("/tmp", "zdb.hook.tmp.")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
