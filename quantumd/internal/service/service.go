@@ -40,6 +40,7 @@ type Config struct {
 	CachePath      string        `yaml:"cache_path"`
 	RetryInterval  time.Duration `yaml:"retry_interval"`
 	DatabasePath   string        `yaml:"database_path"`
+	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
 	MetaBackends   []Backend     `yaml:"-"`
 	DataBackends   []Backend     `yaml:"-"`
 }

@@ -23,6 +23,7 @@ type Config struct {
 	CachePath      string        `yaml:"cache_path"`
 	RetryInterval  time.Duration `yaml:"retry_interval"`
 	DatabasePath   string        `yaml:"database_path"`
+	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -49,6 +50,10 @@ func LoadConfig(path string) (*Config, error) {
 	// Override with environment variables if they are set
 	if mnemonic := os.Getenv("MNEMONIC"); mnemonic != "" {
 		cfg.Mnemonic = mnemonic
+	}
+
+	if cfg.ZdbRotateTime == 0 {
+		cfg.ZdbRotateTime = cfg.RetryInterval
 	}
 
 	return &cfg, nil

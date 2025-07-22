@@ -5,7 +5,7 @@ exec: |
     --logfile /var/log/zdb.log
     --datasize 67108864
     --hook /usr/local/bin/quantumd-hook \
-    --rotate 900
+    --rotate {{.ZdbRotateTime.Seconds}}
 
 shutdown_timeout: 60
 after: [zstor, quantumd]

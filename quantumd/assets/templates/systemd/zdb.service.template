@@ -12,7 +12,7 @@ ExecStart=/usr/local/bin/zdb \
     --logfile /var/log/zdb.log \
     --datasize 67108864 \
     --hook /usr/local/bin/quantumd-hook \
-    --rotate 900
+    --rotate {{.ZdbRotateTime.Seconds}}
 Restart=always
 RestartSec=5
 TimeoutStopSec=60
