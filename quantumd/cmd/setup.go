@@ -85,6 +85,21 @@ func setupQSFS(isLocal bool) error {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 	}
+
+	if err := downloadBinaries(); err != nil {
+		return fmt.Errorf("failed to download binaries: %w", err)
+	}
+
+	if err := createDirectories(cfg); err != nil {
+		return fmt.Errorf("failed to create directories: %w", err)
+	}
+
+	if isLocal {
+		if err := generateLocalZstorConfig(); err != nil {
+			return fmt.Errorf("failed to generate local zstor config: %w", err)
+		}
+	}
+
 	// The service config needs to be converted to the one in the service package
 	serviceCfg := &service.Config{
 		Network:        cfg.Network,
