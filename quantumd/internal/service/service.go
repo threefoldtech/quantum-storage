@@ -126,8 +126,6 @@ ExecStart=/usr/local/bin/zdb \
     --index=/data/index%d \
     --logfile=/var/log/zdb%d.log \
     --datasize 67108864 \
-    --hook /usr/local/bin/zdb-hook.sh \
-    --rotate 900
 Restart=always
 RestartSec=5
 TimeoutStopSec=60
