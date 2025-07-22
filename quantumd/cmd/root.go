@@ -292,7 +292,8 @@ func (h *hookHandler) dispatchHook(action string, args []string) error {
 		}
 		return h.handleMissingData(args[1])
 	default:
-		return fmt.Errorf("unknown hook action received: %s", action)
+		log.Printf("Ignoring unknown hook action: %s", action)
+		return nil
 	}
 }
 
