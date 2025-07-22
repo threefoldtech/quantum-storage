@@ -638,7 +638,7 @@ func (rm *retryManager) processNamespace(namespace, tmpDir string) {
 
 	// Process namespace file
 	namespaceFile := filepath.Join(rm.handler.zstorIndex, namespace, "zdb-namespace")
-	rm.checkAndUploadFile(namespaceFile)
+	rm.checkAndUploadFile(namespaceFile, "")
 
 	// Process data and index files
 	for _, fileType := range []string{"data", "index"} {
@@ -683,7 +683,7 @@ func (rm *retryManager) processFiles(namespace, fileType, tmpDir string) {
 				log.Printf("Failed to copy index file %s: %v", file, err)
 				continue
 			}
-			rm.checkAndUploadFile(tmpPath)
+			rm.checkAndUploadFile(tmpPath, file)
 		} else {
 			// Check if data file was already uploaded
 			uploaded, err := rm.uploadTracker.IsUploaded(file)
@@ -692,7 +692,7 @@ func (rm *retryManager) processFiles(namespace, fileType, tmpDir string) {
 				continue
 			}
 			if !uploaded {
-				rm.checkAndUploadFile(file)
+				rm.checkAndUploadFile(file, "")
 			}
 		}
 	}
@@ -713,13 +713,18 @@ func extractNumber(filename string) int {
 	}
 	return num
 }
-func (rm *retryManager) checkAndUploadFile(file string) {
+func (rm *retryManager) checkAndUploadFile(file, key string) {
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		return
 	}
 
+	remoteFile := file
+	if key != "" {
+		remoteFile = key
+	}
+
 	// Get remote and local hashes
-	remoteHash := rm.getRemoteHash(file)
+	remoteHash := rm.getRemoteHash(remoteFile)
 	localHash := rm.getLocalHash(file)
 
 	if localHash == "" {
@@ -729,27 +734,31 @@ func (rm *retryManager) checkAndUploadFile(file string) {
 
 	// Store file if hashes don't match or remote check failed
 	if remoteHash == "" || remoteHash != localHash {
-		log.Printf("Uploading %s (remote: %s, local: %s)", file, remoteHash, localHash)
+		log.Printf("Uploading %s (remote: %s, local: %s)", remoteFile, remoteHash, localHash)
 
 		// Use a single attempt version of runZstor for retry manager
-		cmd := exec.Command(rm.handler.zstorBin, "-c", rm.handler.zstorConf, "store", "-s", "--file", file)
+		args := []string{"-c", rm.handler.zstorConf, "store", "-s", "--file", file}
+		if key != "" {
+			args = append(args, "-k", key)
+		}
+		cmd := exec.Command(rm.handler.zstorBin, args...)
 		log.Printf("Executing: %s", cmd.String())
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			log.Printf("Failed to upload %s: %v. Output: %s", file, err, string(output))
+			log.Printf("Failed to upload %s: %v. Output: %s", remoteFile, err, string(output))
 			return
 		}
 
-		log.Printf("Successfully uploaded: %s", file)
+		log.Printf("Successfully uploaded: %s", remoteFile)
 
 		// Track uploaded data files
-		if strings.Contains(file, "/data/") {
-			rm.markDataFileUploaded(file, localHash)
+		if strings.Contains(remoteFile, "/data/") {
+			rm.markDataFileUploaded(remoteFile, localHash)
 		}
-	} else if remoteHash == localHash && strings.Contains(file, "/data/") {
+	} else if remoteHash == localHash && strings.Contains(remoteFile, "/data/") {
 		// Already uploaded, mark it
-		rm.markDataFileUploaded(file, localHash)
+		rm.markDataFileUploaded(remoteFile, localHash)
 	}
 }
 func (rm *retryManager) getRemoteHash(file string) string {
@@ -783,7 +792,12 @@ func (rm *retryManager) getLocalHash(file string) string {
 func (rm *retryManager) markDataFileUploaded(file, hash string) {
 	fileInfo, err := os.Stat(file)
 	if err != nil {
-		log.Printf("Failed to get file info for %s: %v", file, err)
+		// The file might get removed by zstor while we're in progress. We
+		// should still try to mark the original file as uploaded. We can't get
+		// the size, so we'll use 0.
+		if err := rm.uploadTracker.MarkUploaded(file, hash, 0); err != nil {
+			log.Printf("Failed to mark file as uploaded: %v", err)
+		}
 		return
 	}
 
