@@ -275,7 +275,7 @@ func recoverData(cfg *Config) error {
 	// Check if namespace exists before creating
 	nsInfoCmd := exec.Command("redis-cli", "-p", "9900", "NSINFO", "zdbfs-temp")
 	output, err := nsInfoCmd.CombinedOutput()
-	if err != nil && strings.Contains(string(output), "namespace not found") {
+	if strings.Contains(string(output), "Namespace not found") {
 		fmt.Println("Temporary namespace 'zdbfs-temp' not found, creating it...")
 		if err := redisCmd("NSNEW", "zdbfs-temp"); err != nil {
 			return errors.Wrap(err, "failed to create temp namespace")
