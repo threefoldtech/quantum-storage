@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
@@ -211,6 +212,14 @@ func waitForServices() error {
 	tick := time.NewTicker(1 * time.Second)
 	defer tick.Stop()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:9900",
+	})
+	defer rdb.Close()
+
 	for {
 		select {
 		case <-timeout:
@@ -218,9 +227,8 @@ func waitForServices() error {
 		case <-tick.C:
 			// Check for zdb
 			zdbReady := false
-			cmd := exec.Command("redis-cli", "-p", "9900", "PING")
-			output, err := cmd.CombinedOutput()
-			if err == nil && strings.TrimSpace(string(output)) == "PONG" {
+			_, err := rdb.Ping(ctx).Result()
+			if err == nil {
 				zdbReady = true
 			}
 
@@ -250,53 +258,38 @@ func recoverData(cfg *Config) error {
 		return cmd.Run()
 	}
 
-	// a. Create mount point (already done in setup)
-	// b. Start zstor and zdb services (already done before calling this func)
-
-	// c. Install redis-cli
-	fmt.Println("Installing redis-cli...")
-	if err := exec.Command("apt", "update").Run(); err != nil {
-		fmt.Println("warn: apt update failed, assuming redis-tools is installed")
-	}
-	if err := exec.Command("apt", "install", "-y", "redis-tools").Run(); err != nil {
-		fmt.Println("warn: failed to install redis-tools, assuming it's already installed")
-	}
-
-	// d. Setup temp namespace
 	fmt.Println("Setting up temporary namespace...")
-	redisCmd := func(args ...string) error {
-		cmdArgs := append([]string{"-p", "9900"}, args...)
-		cmd := exec.Command("redis-cli", cmdArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
+	ctx := context.Background()
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:9900",
+	})
+	defer rdb.Close()
 
 	// Check if namespace exists before creating
-	nsInfoCmd := exec.Command("redis-cli", "-p", "9900", "NSINFO", "zdbfs-temp")
-	output, err := nsInfoCmd.CombinedOutput()
-	if strings.Contains(string(output), "Namespace not found") {
-		fmt.Println("Temporary namespace 'zdbfs-temp' not found, creating it...")
-		if err := redisCmd("NSNEW", "zdbfs-temp"); err != nil {
-			return errors.Wrap(err, "failed to create temp namespace")
+	_, err := rdb.Do(ctx, "NSINFO", "zdbfs-temp").Result()
+	if err != nil {
+		if redis.HasErrorPrefix(err, "Namespace not found") {
+			fmt.Println("Temporary namespace 'zdbfs-temp' not found, creating it...")
+			if err := rdb.Do(ctx, "NSNEW", "zdbfs-temp").Err(); err != nil {
+				return errors.Wrap(err, "failed to create temp namespace")
+			}
+		} else {
+			return errors.Wrapf(err, "failed to check for temp namespace")
 		}
-	} else if err != nil {
-		return errors.Wrapf(err, "failed to check for temp namespace: %s", string(output))
 	} else {
 		fmt.Println("Temporary namespace 'zdbfs-temp' already exists.")
 	}
 
-	if err := redisCmd("NSSET", "zdbfs-temp", "password", "hello"); err != nil {
+	if err := rdb.Do(ctx, "NSSET", "zdbfs-temp", "password", "hello").Err(); err != nil {
 		return errors.Wrap(err, "failed to set temp namespace password")
 	}
-	if err := redisCmd("NSSET", "zdbfs-temp", "public", "0"); err != nil {
+	if err := rdb.Do(ctx, "NSSET", "zdbfs-temp", "public", "0").Err(); err != nil {
 		return errors.Wrap(err, "failed to set temp namespace public flag")
 	}
-	if err := redisCmd("NSSET", "zdbfs-temp", "mode", "seq"); err != nil {
+	if err := rdb.Do(ctx, "NSSET", "zdbfs-temp", "mode", "seq").Err(); err != nil {
 		return errors.Wrap(err, "failed to set temp namespace mode")
 	}
 
-	// e. Recover metadata
 	fmt.Println("Recovering metadata indexes...")
 	if err := zstorCmd("retrieve", "--file", "/data/index/zdbfs-meta/zdb-namespace"); err != nil {
 		return errors.Wrap(err, "failed to retrieve metadata namespace info")
@@ -320,7 +313,6 @@ func recoverData(cfg *Config) error {
 		return errors.Wrap(err, "failed to retrieve latest metadata data file")
 	}
 
-	// f. Recover data
 	fmt.Println("Recovering data indexes...")
 	if err := zstorCmd("retrieve", "--file", "/data/index/zdbfs-data/zdb-namespace"); err != nil {
 		return errors.Wrap(err, "failed to retrieve data namespace info")
