@@ -298,12 +298,7 @@ func getBinaryVersion(binaryPath string) (string, error) {
 }
 
 func needsDownload(binaryName, expectedVersion string) (bool, error) {
-	var binaryPath string
-	if binaryName == "zstor" {
-		binaryPath = "/bin/zstor"
-	} else {
-		binaryPath = "/usr/local/bin/" + binaryName
-	}
+	binaryPath := "/usr/local/bin/" + binaryName
 
 	currentVersion, err := getBinaryVersion(binaryPath)
 	if err != nil {
@@ -352,9 +347,6 @@ func downloadBinaries() error {
 
 		fmt.Printf("Downloading %s v%s...\n", name, expectedVersion)
 		dest := "/usr/local/bin/" + name
-		if name == "zstor" {
-			dest = "/bin/zstor"
-		}
 
 		cmd := exec.Command("wget", "-O", dest, url)
 		if err := cmd.Run(); err != nil {

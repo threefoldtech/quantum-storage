@@ -7,7 +7,7 @@ StartLimitIntervalSec=0
 ProtectHome=true
 ProtectSystem=true
 ReadWritePaths={{.ZdbRootPath}} /var/log
-ExecStart=/bin/zstor \
+ExecStart=/usr/local/bin/zstor \
   --log_file /var/log/zstor.log \
   -c /etc/zstor.toml \
   monitor
@@ -17,4 +17,3 @@ TimeoutStopSec=5m
 
 [Install]
 WantedBy=multi-user.target
-

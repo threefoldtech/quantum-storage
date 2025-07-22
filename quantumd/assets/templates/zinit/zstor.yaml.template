@@ -1,5 +1,5 @@
 exec: |
-  /bin/zstor
+  /usr/local/bin/zstor
     --log_file /var/log/zstor.log
     -c /etc/zstor.toml
     monitor
