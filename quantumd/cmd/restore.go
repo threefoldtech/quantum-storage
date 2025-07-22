@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -146,12 +147,33 @@ func runRestore() error {
 		return err
 	}
 
-	// Start zdb and zstor first
-	for _, srv := range []string{"zdb", "zstor"} {
-		if err := sm.StartService(srv); err != nil {
-			return fmt.Errorf("failed to start service %s: %w", srv, err)
-		}
+	// Manually start zstor and zdb for recovery
+	fmt.Println("Starting temporary zstor and zdb for recovery...")
+	if err := sm.EnableService("zstor"); err != nil {
+		return fmt.Errorf("failed to start temporary zstor service: %w", err)
 	}
+
+	zdbCmd := exec.Command("/usr/local/bin/zdb",
+		"--index", cfg.ZdbRootPath+"/index",
+		"--data", cfg.ZdbRootPath+"/data",
+		"--logfile", "/var/log/zdb.log",
+		"--datasize", "67108864",
+		"--hook", "/usr/local/bin/quantumd-hook",
+		"--rotate", "900",
+	)
+	zdbCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := zdbCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start temporary zdb process: %w", err)
+	}
+
+	// Defer cleanup of temporary services
+	defer func() {
+		fmt.Println("Cleaning up temporary services...")
+		// Kill the entire process group of zdb
+		if err := syscall.Kill(-zdbCmd.Process.Pid, syscall.SIGKILL); err != nil {
+			fmt.Printf("warn: failed to kill temporary zdb process group: %v\n", err)
+		}
+	}()
 
 	// Wait for services to be ready
 	if err := waitForServices(); err != nil {
@@ -164,10 +186,19 @@ func runRestore() error {
 		return errors.Wrap(err, "failed to recover data")
 	}
 
-	// 6. Start zdbfs service
-	fmt.Println("Starting ZDBFS service...")
-	if err := sm.StartService("zdbfs"); err != nil {
-		return errors.Wrap(err, "failed to start zdbfs service")
+	// Cleanup is handled by defer. Now start the final services.
+	fmt.Println("Recovery successful. Starting all system services...")
+
+	servicesToStart := []string{"zdb", "zdbfs", "quantumd"}
+	for _, srv := range servicesToStart {
+		fmt.Printf("Enabling and starting service %s...\n", srv)
+		if err := sm.EnableService(srv); err != nil {
+			fmt.Printf("warn: failed to enable service %s: %v\n", srv, err)
+		}
+		if err := sm.StartService(srv); err != nil {
+			// Don't fail the whole process, just log a warning
+			fmt.Printf("warn: failed to start service %s: %v\n", srv, err)
+		}
 	}
 
 	fmt.Println("Restore process completed successfully!")
@@ -220,15 +251,15 @@ func recoverData(cfg *Config) error {
 	}
 
 	// a. Create mount point (already done in setup)
-	// b. Start zstor and zdb services (already done in setup)
+	// b. Start zstor and zdb services (already done before calling this func)
 
 	// c. Install redis-cli
 	fmt.Println("Installing redis-cli...")
 	if err := exec.Command("apt", "update").Run(); err != nil {
-		return errors.Wrap(err, "apt update failed")
+		fmt.Println("warn: apt update failed, assuming redis-tools is installed")
 	}
 	if err := exec.Command("apt", "install", "-y", "redis-tools").Run(); err != nil {
-		return errors.Wrap(err, "failed to install redis-tools")
+		fmt.Println("warn: failed to install redis-tools, assuming it's already installed")
 	}
 
 	// d. Setup temp namespace
@@ -311,16 +342,6 @@ func recoverData(cfg *Config) error {
 	}
 	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("/data/data/zdbfs-data/d%d", lastDataIndex)); err != nil {
 		return errors.Wrap(err, "failed to retrieve latest data data file")
-	}
-
-	// g. Start zdbfs service
-	fmt.Println("Starting ZDBFS service...")
-	sm, err := service.NewServiceManager()
-	if err != nil {
-		return err
-	}
-	if err := sm.StartService("zdbfs"); err != nil {
-		return errors.Wrap(err, "failed to start zdbfs service")
 	}
 
 	return nil

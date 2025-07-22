@@ -96,8 +96,9 @@ func (s *SystemdManager) StartService(name string) error {
 	return exec.Command("systemctl", "start", name).Run()
 }
 
+// `zinit monitor` also has "now" behavior, so use the same here
 func (s *SystemdManager) EnableService(name string) error {
-	return exec.Command("systemctl", "enable", name).Run()
+	return exec.Command("systemctl", "enable", "--now", name).Run()
 }
 
 func (s *SystemdManager) DisableService(name string) error {
