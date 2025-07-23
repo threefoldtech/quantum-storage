@@ -92,6 +92,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&localMode, "local", "l", false, "Enable local mode")
 	rootCmd.PersistentFlags().Bool("version", false, "Print the version number of quantumd")
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(checkCmd)
 
 	// Add version flag handler
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
