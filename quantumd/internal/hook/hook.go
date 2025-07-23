@@ -199,7 +199,7 @@ func (h *Handler) uploadAndTrack(filePath string) {
 
 	// Track uploaded data files
 	if isDataFile {
-		hash := getLocalHash(filePath)
+		hash := GetLocalHash(filePath)
 		if hash == "" {
 			log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
 			return
@@ -339,7 +339,7 @@ func copyFile(src, dst string) error {
 	return os.WriteFile(dst, data, 0644)
 }
 
-func getLocalHash(file string) string {
+func GetLocalHash(file string) string {
 	// Try b2sum first, fallback to sha256sum
 	cmd := exec.Command("b2sum", "-l", "128", file)
 	output, err := cmd.Output()

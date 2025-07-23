@@ -443,7 +443,7 @@ func (rm *retryManager) checkAndUploadFile(file, key string) {
 
 	// Get remote and local hashes
 	remoteHash := rm.getRemoteHash(remoteFile)
-	localHash := rm.getLocalHash(file)
+	localHash := hook.GetLocalHash(file)
 
 	if localHash == "" {
 		log.Printf("Failed to get local hash for %s", file)
@@ -488,24 +488,7 @@ func (rm *retryManager) getRemoteHash(file string) string {
 	return strings.TrimSpace(string(output))
 }
 
-func (rm *retryManager) getLocalHash(file string) string {
-	// Try b2sum first, fallback to sha256sum
-	cmd := exec.Command("b2sum", "-l", "128", file)
-	output, err := cmd.Output()
-	if err != nil {
-		// Fallback to sha256sum
-		cmd = exec.Command("sha256sum", file)
-		output, err = cmd.Output()
-		if err != nil {
-			return ""
-		}
-	}
-	parts := strings.Fields(string(output))
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return ""
-}
+
 
 func (rm *retryManager) markDataFileUploaded(localFile, remoteFile, hash string) {
 	fileInfo, err := os.Stat(localFile)
