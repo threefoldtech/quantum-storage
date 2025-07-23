@@ -252,10 +252,19 @@ func recoverData(cfg *Config) error {
 	zstorCmd := func(args ...string) error {
 		cmdArgs := append([]string{"-c", ConfigOutPath}, args...)
 		cmd := exec.Command("zstor", cmdArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		fmt.Printf("Running: %s\n", cmd.String())
-		return cmd.Run()
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			// Check for the specific "entity not found" error which is expected at the end of retrieval
+			if strings.Contains(string(output), "entity not found") {
+				return fmt.Errorf("not found") // Special error to signal end of loop
+			}
+			// For other errors, print the full output for context
+			fmt.Print(string(output))
+			return err
+		}
+		fmt.Print(string(output))
+		return nil
 	}
 
 	fmt.Println("Setting up temporary namespace...")
@@ -297,48 +306,71 @@ func recoverData(cfg *Config) error {
 
 	fmt.Println("Recovering metadata indexes...")
 	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/zdb-namespace", metaIndexDir)); err != nil {
-		return errors.Wrap(err, "failed to retrieve metadata namespace info")
+		// If the namespace file itself isn't found, it's a real error.
+		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "not found") {
+			fmt.Println("No metadata namespace info found, which might be okay. Continuing...")
+		} else {
+			return errors.Wrap(err, "failed to retrieve metadata namespace info")
+		}
 	}
 
 	for i := 0; ; i++ {
 		filePath := fmt.Sprintf("%s/i%d", metaIndexDir, i)
 		err := zstorCmd("retrieve", "--file", filePath)
 		if err != nil {
-			fmt.Printf("Finished retrieving metadata indexes at i%d.\n", i-1)
-			break
+			if err.Error() == "not found" {
+				fmt.Printf("Finished retrieving metadata indexes at i%d.\n", i-1)
+				break
+			}
+			return errors.Wrapf(err, "error retrieving metadata index %s", filePath)
 		}
 	}
 
 	fmt.Println("Retrieving latest metadata data file...")
 	lastMetaIndex, err := findLastIndex(metaIndexDir)
 	if err != nil {
-		return errors.Wrap(err, "could not find last metadata index")
-	}
-	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", metaDataDir, lastMetaIndex)); err != nil {
-		return errors.Wrap(err, "failed to retrieve latest metadata data file")
+		fmt.Printf("Could not find last metadata index, this might be okay if no data was written: %v\n", err)
+	} else {
+		if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", metaDataDir, lastMetaIndex)); err != nil {
+			if err.Error() != "not found" {
+				return errors.Wrap(err, "failed to retrieve latest metadata data file")
+			}
+			fmt.Println("Latest metadata data file not found, which might be okay.")
+		}
 	}
 
 	fmt.Println("Recovering data indexes...")
 	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/zdb-namespace", dataIndexDir)); err != nil {
-		return errors.Wrap(err, "failed to retrieve data namespace info")
+		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "not found") {
+			fmt.Println("No data namespace info found, which might be okay. Continuing...")
+		} else {
+			return errors.Wrap(err, "failed to retrieve data namespace info")
+		}
 	}
 
 	for i := 0; ; i++ {
 		filePath := fmt.Sprintf("%s/i%d", dataIndexDir, i)
 		err := zstorCmd("retrieve", "--file", filePath)
 		if err != nil {
-			fmt.Printf("Finished retrieving data indexes at i%d.\n", i-1)
-			break
+			if err.Error() == "not found" {
+				fmt.Printf("Finished retrieving data indexes at i%d.\n", i-1)
+				break
+			}
+			return errors.Wrapf(err, "error retrieving data index %s", filePath)
 		}
 	}
 
 	fmt.Println("Retrieving latest data data file...")
 	lastDataIndex, err := findLastIndex(dataIndexDir)
 	if err != nil {
-		return errors.Wrap(err, "could not find last data index")
-	}
-	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", dataDataDir, lastDataIndex)); err != nil {
-		return errors.Wrap(err, "failed to retrieve latest data data file")
+		fmt.Printf("Could not find last data index, this might be okay if no data was written: %v\n", err)
+	} else {
+		if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", dataDataDir, lastDataIndex)); err != nil {
+			if err.Error() != "not found" {
+				return errors.Wrap(err, "failed to retrieve latest data data file")
+			}
+			fmt.Println("Latest data data file not found, which might be okay.")
+		}
 	}
 
 	return nil
