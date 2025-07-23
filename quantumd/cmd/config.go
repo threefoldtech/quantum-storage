@@ -24,6 +24,7 @@ type Config struct {
 	RetryInterval  time.Duration `yaml:"retry_interval"`
 	DatabasePath   string        `yaml:"database_path"`
 	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
+	ZdbConnectionType string `yaml:"zdb_connection_type"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -54,6 +55,9 @@ func LoadConfig(path string) (*Config, error) {
 
 	if cfg.ZdbRotateTime == 0 {
 		cfg.ZdbRotateTime = cfg.RetryInterval
+	}
+	if cfg.ZdbConnectionType == "" {
+		cfg.ZdbConnectionType = "mycelium"
 	}
 
 	return &cfg, nil

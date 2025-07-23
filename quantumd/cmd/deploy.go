@@ -17,6 +17,31 @@ import (
 	bip39 "github.com/tyler-smith/go-bip39"
 )
 
+func mapIPs(ips []string) map[string]string {
+	mapped := make(map[string]string)
+	for _, ip := range ips {
+		parts := strings.Split(ip, ":")
+		if len(parts) == 0 {
+			continue
+		}
+		firstPart := parts[0]
+		// Convert the first part to a hex number for range checking
+		hexValue, err := strconv.ParseInt(firstPart, 16, 64)
+		if err != nil {
+			continue
+		}
+		// Check if it falls into specific ranges
+		if 0x2000 <= hexValue && hexValue <= 0x3FFF {
+			mapped["ipv6"] = ip
+		} else if 0x200 <= hexValue && hexValue <= 0x3FF {
+			mapped["ygg"] = ip
+		} else if 0x400 <= hexValue && hexValue <= 0x5FF {
+			mapped["mycelium"] = ip
+		}
+	}
+	return mapped
+}
+
 func parseNodeIDs(input string) ([]uint32, error) {
 	parts := strings.Split(input, ",")
 	ids := make([]uint32, 0, len(parts))
@@ -277,8 +302,13 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 
 	// Add meta backends
 	for _, zdb := range meta {
+		mappedIPs := mapIPs(zdb.IPs)
+		ip, ok := mappedIPs[cfg.ZdbConnectionType]
+		if !ok {
+			return fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
+		}
 		configBuilder.WriteString("\n\n[[meta.config.backends]]\n")
-		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1]))
+		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", ip))
 		configBuilder.WriteString(fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace))
 		configBuilder.WriteString(fmt.Sprintf("password = \"%s\"", cfg.Password))
 	}
@@ -286,8 +316,13 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 	// Add data backends
 	configBuilder.WriteString("\n\n[[groups]]")
 	for _, zdb := range data {
+		mappedIPs := mapIPs(zdb.IPs)
+		ip, ok := mappedIPs[cfg.ZdbConnectionType]
+		if !ok {
+			return fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
+		}
 		configBuilder.WriteString("\n\n[[groups.backends]]\n")
-		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", zdb.IPs[len(zdb.IPs)-1]))
+		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", ip))
 		configBuilder.WriteString(fmt.Sprintf("namespace = \"%s\"\n", zdb.Namespace))
 		configBuilder.WriteString(fmt.Sprintf("password = \"%s\"", cfg.Password))
 	}
