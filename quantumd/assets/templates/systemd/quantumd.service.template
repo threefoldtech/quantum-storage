@@ -3,7 +3,7 @@ Description=Quantum Storage Daemon
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/quantumd
+ExecStart=/usr/local/bin/quantumd daemon
 Restart=always
 User=root
 
