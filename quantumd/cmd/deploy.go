@@ -44,7 +44,7 @@ Use --destroy to remove existing deployments.`,
 		}
 
 		if destroyDeployments {
-			if err := destroyBackends(cfg); err != nil {
+			if err := DestroyBackends(cfg); err != nil {
 				fmt.Printf("Error destroying deployments: %v\n", err)
 				os.Exit(1)
 			}
@@ -72,7 +72,7 @@ Use --destroy to remove existing deployments.`,
 			os.Exit(1)
 		}
 
-		if err := deployBackends(cfg); err != nil {
+		if err := DeployBackends(cfg); err != nil {
 			fmt.Printf("Error deploying backends: %v\n", err)
 			os.Exit(1)
 		}
@@ -87,7 +87,7 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-func destroyBackends(cfg *Config) error {
+func DestroyBackends(cfg *Config) error {
 	if cfg.DeploymentName == "" {
 		return errors.New("deployment_name is required in config for destroying")
 	}
@@ -127,7 +127,7 @@ func destroyBackends(cfg *Config) error {
 	return nil
 }
 
-func deployBackends(cfg *Config) error {
+func DeployBackends(cfg *Config) error {
 	// Create grid client
 	network := Network
 	if cfg.Network != "" {

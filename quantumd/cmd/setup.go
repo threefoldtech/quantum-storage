@@ -39,7 +39,7 @@ var setupCmd = &cobra.Command{
 	Long: `Downloads binaries and configures services for zstor, zdb and zdbfs.
 With --local flag, sets up a complete local test environment with backend ZDBs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := setupQSFS(localMode); err != nil {
+		if err := SetupQSFS(localMode); err != nil {
 			fmt.Printf("Error setting up QSFS: %v\n", err)
 			os.Exit(1)
 		}
@@ -67,7 +67,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 }
 
-func setupQSFS(isLocal bool) error {
+func SetupQSFS(isLocal bool) error {
 	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
 		// In local mode, a config file is not strictly required.
