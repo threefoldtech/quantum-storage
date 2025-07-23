@@ -10,6 +10,10 @@ import (
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 )
 
+func init() {
+	rootCmd.AddCommand(checkCmd)
+}
+
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check for missing files and list uploaded files with their hashes.",
@@ -40,10 +44,6 @@ of the stored files.`,
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(checkCmd)
-}
-
 func checkAndPrintHashes(dbPath string) error {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -58,18 +58,17 @@ func checkAndPrintHashes(dbPath string) error {
 	defer rows.Close()
 
 	var (
-		filePath    string
-		dbHash      string
-		localHash   string
-		status      string
-		mismatches  int
-		files       int
-		notFound    int
+		filePath   string
+		dbHash     string
+		localHash  string
+		status     string
+		mismatches int
+		files      int
+		notFound   int
 	)
 
 	fmt.Printf("%-70s %-35s %-35s %-10s\n", "File Path", "Database Hash", "Local Hash", "Status")
 	fmt.Println(string(make([]byte, 150, 150)))
-
 
 	for rows.Next() {
 		files++

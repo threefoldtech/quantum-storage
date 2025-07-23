@@ -26,8 +26,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "/etc/quantumd.yaml", "Path to YAML config file")
 	rootCmd.PersistentFlags().BoolVarP(&localMode, "local", "l", false, "Enable local mode")
 	rootCmd.PersistentFlags().Bool("version", false, "Print the version number of quantumd")
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(checkCmd)
 
 	// Add version flag handler
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
@@ -66,19 +64,4 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-// versionCmd represents the version command
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print the version number of quantumd",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("quantumd version %s\n", version)
-		if commit != "" {
-			fmt.Printf("commit: %s\n", commit)
-		}
-		if date != "" {
-			fmt.Printf("built at: %s\n", date)
-		}
-	},
 }
