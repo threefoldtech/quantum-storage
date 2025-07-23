@@ -290,13 +290,18 @@ func recoverData(cfg *Config) error {
 		return errors.Wrap(err, "failed to set temp namespace mode")
 	}
 
+	metaIndexDir := fmt.Sprintf("%s/index/zdbfs-meta", cfg.ZdbRootPath)
+	metaDataDir := fmt.Sprintf("%s/data/zdbfs-meta", cfg.ZdbRootPath)
+	dataIndexDir := fmt.Sprintf("%s/index/zdbfs-data", cfg.ZdbRootPath)
+	dataDataDir := fmt.Sprintf("%s/data/zdbfs-data", cfg.ZdbRootPath)
+
 	fmt.Println("Recovering metadata indexes...")
-	if err := zstorCmd("retrieve", "--file", "/data/index/zdbfs-meta/zdb-namespace"); err != nil {
+	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/zdb-namespace", metaIndexDir)); err != nil {
 		return errors.Wrap(err, "failed to retrieve metadata namespace info")
 	}
 
 	for i := 0; ; i++ {
-		filePath := fmt.Sprintf("/data/index/zdbfs-meta/i%d", i)
+		filePath := fmt.Sprintf("%s/i%d", metaIndexDir, i)
 		err := zstorCmd("retrieve", "--file", filePath)
 		if err != nil {
 			fmt.Printf("Finished retrieving metadata indexes at i%d.\n", i-1)
@@ -305,21 +310,21 @@ func recoverData(cfg *Config) error {
 	}
 
 	fmt.Println("Retrieving latest metadata data file...")
-	lastMetaIndex, err := findLastIndex("/data/index/zdbfs-meta")
+	lastMetaIndex, err := findLastIndex(metaIndexDir)
 	if err != nil {
 		return errors.Wrap(err, "could not find last metadata index")
 	}
-	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("/data/data/zdbfs-meta/d%d", lastMetaIndex)); err != nil {
+	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", metaDataDir, lastMetaIndex)); err != nil {
 		return errors.Wrap(err, "failed to retrieve latest metadata data file")
 	}
 
 	fmt.Println("Recovering data indexes...")
-	if err := zstorCmd("retrieve", "--file", "/data/index/zdbfs-data/zdb-namespace"); err != nil {
+	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/zdb-namespace", dataIndexDir)); err != nil {
 		return errors.Wrap(err, "failed to retrieve data namespace info")
 	}
 
 	for i := 0; ; i++ {
-		filePath := fmt.Sprintf("/data/index/zdbfs-data/i%d", i)
+		filePath := fmt.Sprintf("%s/i%d", dataIndexDir, i)
 		err := zstorCmd("retrieve", "--file", filePath)
 		if err != nil {
 			fmt.Printf("Finished retrieving data indexes at i%d.\n", i-1)
@@ -328,11 +333,11 @@ func recoverData(cfg *Config) error {
 	}
 
 	fmt.Println("Retrieving latest data data file...")
-	lastDataIndex, err := findLastIndex("/data/index/zdbfs-data")
+	lastDataIndex, err := findLastIndex(dataIndexDir)
 	if err != nil {
 		return errors.Wrap(err, "could not find last data index")
 	}
-	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("/data/data/zdbfs-data/d%d", lastDataIndex)); err != nil {
+	if err := zstorCmd("retrieve", "--file", fmt.Sprintf("%s/d%d", dataDataDir, lastDataIndex)); err != nil {
 		return errors.Wrap(err, "failed to retrieve latest data data file")
 	}
 

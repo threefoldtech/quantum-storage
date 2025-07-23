@@ -26,12 +26,12 @@ type Handler struct {
 }
 
 // NewHandler creates a new hook handler
-func NewHandler() (*Handler, error) {
+func NewHandler(zdbRootPath string) (*Handler, error) {
 	h := &Handler{
 		ZstorConf:  "/etc/zstor.toml",
 		ZstorBin:   "/usr/local/bin/zstor",
-		ZstorIndex: "/data/index",
-		ZstorData:  "/data/data",
+		ZstorIndex: filepath.Join(zdbRootPath, "index"),
+		ZstorData:  filepath.Join(zdbRootPath, "data"),
 	}
 
 	// Verify that the zstor binary exists

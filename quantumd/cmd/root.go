@@ -60,7 +60,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		handler, err := hook.NewHandler()
+		handler, err := hook.NewHandler(cfg.ZdbRootPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
 		}
