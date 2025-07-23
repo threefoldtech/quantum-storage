@@ -34,21 +34,12 @@ var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy backend ZDBs on the ThreeFold Grid",
 	Long: `Deploys metadata and data ZDBs on specified nodes.
-Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.
-Use --destroy to remove existing deployments.`,
+Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := LoadConfig(ConfigFile)
 		if err != nil {
 			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
-		}
-
-		if destroyDeployments {
-			if err := DestroyBackends(cfg); err != nil {
-				fmt.Printf("Error destroying deployments: %v\n", err)
-				os.Exit(1)
-			}
-			return
 		}
 
 		if cfg.DeploymentName == "" {
@@ -79,55 +70,13 @@ Use --destroy to remove existing deployments.`,
 	},
 }
 
-var destroyDeployments bool
-
 func init() {
-	deployCmd.Flags().BoolVarP(&destroyDeployments, "destroy", "d", false, "Destroy existing deployments")
 	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor.toml", "Path to write generated zstor config")
 	rootCmd.AddCommand(deployCmd)
 }
 
-func DestroyBackends(cfg *Config) error {
-	if cfg.DeploymentName == "" {
-		return errors.New("deployment_name is required in config for destroying")
-	}
-
-	network := Network
-	if cfg.Network != "" {
-		network = cfg.Network
-	}
-
-	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
-	if err != nil {
-		return errors.Wrap(err, "failed to create grid client")
-	}
-
-	twinID := uint64(gridClient.TwinID)
-	contractsToCancel, err := grid.GetDeploymentContracts(&gridClient, twinID, cfg.DeploymentName)
-	if err != nil {
-		return errors.Wrapf(err, "failed to query contracts for twin %d", twinID)
-	}
-
-	if len(contractsToCancel) == 0 {
-		fmt.Printf("No deployments found with name starting with '%s'. Nothing to do.\n", cfg.DeploymentName)
-		return nil
-	}
-
-	fmt.Printf("Found %d deployments to destroy.\n", len(contractsToCancel))
-
-	for _, contract := range contractsToCancel {
-		fmt.Printf("Destroying deployment with contract ID %d\n", contract.ContractID)
-		if err := gridClient.SubstrateConn.CancelContract(gridClient.Identity, uint64(contract.ContractID)); err != nil {
-			fmt.Printf("warn: failed to destroy deployment with contract ID %d: %v\n", contract.ContractID, err)
-		} else {
-			fmt.Printf("Destroyed deployment with contract ID %d\n", contract.ContractID)
-		}
-	}
-
-	return nil
-}
-
 func DeployBackends(cfg *Config) error {
+
 	// Create grid client
 	network := Network
 	if cfg.Network != "" {
