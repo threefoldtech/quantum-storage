@@ -60,18 +60,25 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		handler, err := hook.NewHandler(cfg.ZdbRootPath)
+		// Determine database path
+		dbPath := cfg.DatabasePath
+		if dbPath == "" {
+			// Default path relative to ZdbRootPath
+			dbPath = filepath.Join(cfg.ZdbRootPath, "uploaded_files.db")
+		}
+
+		// Initialize a single upload tracker for both hook and retry manager
+		uploadTracker, err := newUploadTracker(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to initialize upload tracker: %w", err)
+		}
+
+		handler, err := hook.NewHandler(cfg.ZdbRootPath, uploadTracker)
 		if err != nil {
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
 		}
 
-		dbPath := cfg.DatabasePath
-		if dbPath == "" {
-			dataDir := filepath.Dir(handler.ZstorData)
-			dbPath = filepath.Join(dataDir, "uploaded_files.db")
-		}
-
-		retryManager, err := newRetryManager(handler, cfg.RetryInterval, dbPath)
+		retryManager, err := newRetryManager(handler, cfg.RetryInterval, uploadTracker)
 		if err != nil {
 			return fmt.Errorf("failed to initialize retry manager: %w", err)
 		}
@@ -291,12 +298,7 @@ func (ut *uploadTracker) Vacuum() error {
 	return err
 }
 
-func newRetryManager(handler *hook.Handler, interval time.Duration, dbPath string) (*retryManager, error) {
-	uploadTracker, err := newUploadTracker(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create upload tracker: %w", err)
-	}
-
+func newRetryManager(handler *hook.Handler, interval time.Duration, tracker *uploadTracker) (*retryManager, error) {
 	if interval <= 0 {
 		interval = defaultRetryInterval
 	}
@@ -304,7 +306,7 @@ func newRetryManager(handler *hook.Handler, interval time.Duration, dbPath strin
 	return &retryManager{
 		handler:       handler,
 		interval:      interval,
-		uploadTracker: uploadTracker,
+		uploadTracker: tracker,
 	}, nil
 }
 

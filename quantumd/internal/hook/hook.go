@@ -17,21 +17,30 @@ const (
 	SocketPath = "/tmp/zdb-hook.sock"
 )
 
+// UploadTracker defines the interface for tracking uploaded files.
+// This helps in decoupling the hook handler from the concrete implementation.
+type UploadTracker interface {
+	MarkUploaded(filePath, hash string, fileSize int64) error
+	IsUploaded(filePath string) (bool, error)
+}
+
 // Handler manages hook dispatching
 type Handler struct {
-	ZstorConf  string
-	ZstorBin   string
-	ZstorIndex string
-	ZstorData  string
+	ZstorConf     string
+	ZstorBin      string
+	ZstorIndex    string
+	ZstorData     string
+	UploadTracker UploadTracker
 }
 
 // NewHandler creates a new hook handler
-func NewHandler(zdbRootPath string) (*Handler, error) {
+func NewHandler(zdbRootPath string, tracker UploadTracker) (*Handler, error) {
 	h := &Handler{
-		ZstorConf:  "/etc/zstor.toml",
-		ZstorBin:   "/usr/local/bin/zstor",
-		ZstorIndex: filepath.Join(zdbRootPath, "index"),
-		ZstorData:  filepath.Join(zdbRootPath, "data"),
+		ZstorConf:     "/etc/zstor.toml",
+		ZstorBin:      "/usr/local/bin/zstor",
+		ZstorIndex:    filepath.Join(zdbRootPath, "index"),
+		ZstorData:     filepath.Join(zdbRootPath, "data"),
+		UploadTracker: tracker,
 	}
 
 	// Verify that the zstor binary exists
@@ -154,6 +163,53 @@ func (h *Handler) dispatchHook(action string, args []string) error {
 	}
 }
 
+// uploadAndTrack handles uploading a file and marking it in the database.
+func (h *Handler) uploadAndTrack(filePath string) {
+	// Skip if file doesn't exist
+	fileInfo, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return
+	}
+
+	// For data files, check if it's already uploaded to avoid re-uploading.
+	isDataFile := strings.Contains(filePath, "/data/")
+	if isDataFile {
+		uploaded, err := h.UploadTracker.IsUploaded(filePath)
+		if err != nil {
+			log.Printf("Failed to check upload status for %s: %v", filePath, err)
+		}
+		if uploaded {
+			log.Printf("Skipping already uploaded data file: %s", filePath)
+			return
+		}
+	}
+
+	// Use a single attempt version of runZstor
+	args := []string{"-c", h.ZstorConf, "store", "-s", "--file", filePath}
+	cmd := exec.Command(h.ZstorBin, args...)
+	log.Printf("Executing: %s", cmd.String())
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Failed to upload %s: %v. Output: %s", filePath, err, string(output))
+		return
+	}
+
+	log.Printf("Successfully uploaded: %s", filePath)
+
+	// Track uploaded data files
+	if isDataFile {
+		hash := getLocalHash(filePath)
+		if hash == "" {
+			log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
+			return
+		}
+		if err := h.UploadTracker.MarkUploaded(filePath, hash, fileInfo.Size()); err != nil {
+			log.Printf("Failed to mark file as uploaded: %v", err)
+		}
+	}
+}
+
 // runZstor executes the zstor command with the given arguments
 func (h *Handler) runZstor(args ...string) error {
 	cmd := exec.Command(h.ZstorBin, args...)
@@ -212,9 +268,9 @@ func (h *Handler) handleClose() error {
 		indexFile := filepath.Join(indexDir, fmt.Sprintf("i%d", lastActive))
 
 		// Upload data file
-		go h.runZstor("-c", h.ZstorConf, "store", "-s", "--file", dataFile)
+		go h.uploadAndTrack(dataFile)
 		// Upload index file
-		go h.runZstor("-c", h.ZstorConf, "store", "-s", "--file", indexFile)
+		go h.uploadAndTrack(indexFile)
 	}
 	return nil
 }
@@ -232,7 +288,7 @@ func (h *Handler) handleNamespaceUpdate(namespace string) error {
 	}
 	file := filepath.Join(h.ZstorIndex, namespace, "zdb-namespace")
 	// Run in a goroutine to not block the hook call
-	go h.runZstor("-c", h.ZstorConf, "store", "-s", "--file", file)
+	go h.uploadAndTrack(file)
 	return nil
 }
 
@@ -243,33 +299,17 @@ func (h *Handler) handleJumpIndex(indexPath string, dirtyIndices []string) error
 		return nil
 	}
 
-	// Create a temporary directory to stage the files for upload
-	tmpDir, err := os.MkdirTemp("/tmp", "zdb.hook.tmp.")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	// defer os.RemoveAll(tmpDir) // The zstor command might need this to persist
-
 	dirBase := filepath.Dir(indexPath)
 
-	// Copy dirty index files
+	// Upload dirty index files
 	for _, dirty := range dirtyIndices {
 		fileName := fmt.Sprintf("i%s", dirty)
 		src := filepath.Join(dirBase, fileName)
-		dst := filepath.Join(tmpDir, fileName)
-		if err := copyFile(src, dst); err != nil {
-			log.Printf("Failed to copy dirty index file %s: %v", src, err)
-			continue // Try to upload what we can
-		}
+		go h.uploadAndTrack(src)
 	}
 
-	// Copy the main index file that triggered the jump
-	if err := copyFile(indexPath, filepath.Join(tmpDir, filepath.Base(indexPath))); err != nil {
-		return fmt.Errorf("failed to copy main index file %s: %w", indexPath, err)
-	}
-
-	// Upload the entire directory in the background
-	go h.runZstor("-c", h.ZstorConf, "store", "-s", "-d", "-f", tmpDir, "-k", dirBase)
+	// Upload the main index file that triggered the jump
+	go h.uploadAndTrack(indexPath)
 
 	return nil
 }
@@ -281,7 +321,7 @@ func (h *Handler) handleJumpData(dataPath string) error {
 		return nil
 	}
 	// Run in a goroutine to not block the hook call
-	go h.runZstor("-c", h.ZstorConf, "store", "-s", "--file", dataPath)
+	go h.uploadAndTrack(dataPath)
 	return nil
 }
 
@@ -297,4 +337,23 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0644)
+}
+
+func getLocalHash(file string) string {
+	// Try b2sum first, fallback to sha256sum
+	cmd := exec.Command("b2sum", "-l", "128", file)
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback to sha256sum
+		cmd = exec.Command("sha256sum", file)
+		output, err = cmd.Output()
+		if err != nil {
+			return ""
+		}
+	}
+	parts := strings.Fields(string(output))
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
 }
