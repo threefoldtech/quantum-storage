@@ -14,14 +14,14 @@ The idea here is to create a program that can manage all aspects of QSFS that do
 
 So far a subset of functionality has been implemented and heavy changes are expected. It's already possible to deploy a QSFS using the tool though, both with local and remote backends.
 
-First get yourself a binary:
+First get yourself a binary. You can grab a release artifact from this repo:
 
-```
-# Go compiler is required
-make build
+```bash
+wget https://github.com/threefoldtech/quantum-storage/releases/download/v0.4.0-rc1/quantumd_0.4.0-rc2_linux_amd64 -O /usr/local/bin/quantumd
+chmod +x /usr/local/bin/quantumd
 ```
 
-Then copy the binary to the machine where QSFS will run. Note the following:
+Note the following:
 
 - Linux only for now
 - Installs files to `/usr/local/bin` and `/etc` without confirmation
