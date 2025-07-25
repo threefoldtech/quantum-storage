@@ -140,12 +140,13 @@ func (h *Handler) dispatchHook(action string, args []string) error {
 		}
 		return h.handleNamespaceUpdate(args[1]) // arg[0] is instance, arg[1] is namespace
 	case "jump-index":
-		if len(args) < 4 {
+		if len(args) < 2 {
 			return fmt.Errorf("not enough arguments for %s", action)
 		}
-		// The shell script's $5 corresponds to args[3] here.
-		// The shell `for` loop splits by whitespace, so we do the same.
-		dirtyList := strings.Fields(args[3])
+		var dirtyList []string
+		if len(args) >= 4 {
+			dirtyList = strings.Fields(args[3])
+		}
 		return h.handleJumpIndex(args[1], dirtyList)
 	case "jump-data":
 		if len(args) < 2 {
@@ -171,8 +172,12 @@ func (h *Handler) uploadAndTrack(filePath string) {
 		return
 	}
 
+	baseName := filepath.Base(filePath)
+	isDataFile := strings.HasPrefix(baseName, "d")
+	isIndexFile := strings.HasPrefix(baseName, "i")
+
 	// For data files, check if it's already uploaded to avoid re-uploading.
-	isDataFile := strings.Contains(filePath, "/data/")
+	// Index files are always re-uploaded if they are dirty.
 	if isDataFile {
 		uploaded, err := h.UploadTracker.IsUploaded(filePath)
 		if err != nil {
@@ -197,8 +202,8 @@ func (h *Handler) uploadAndTrack(filePath string) {
 
 	log.Printf("Successfully uploaded: %s", filePath)
 
-	// Track uploaded data files
-	if isDataFile {
+	// Track uploaded data and index files
+	if isDataFile || isIndexFile {
 		hash := GetLocalHash(filePath)
 		if hash == "" {
 			log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
@@ -308,8 +313,21 @@ func (h *Handler) handleJumpIndex(indexPath string, dirtyIndices []string) error
 		go h.uploadAndTrack(src)
 	}
 
-	// Upload the main index file that triggered the jump
-	go h.uploadAndTrack(indexPath)
+	// Check if the main index path is already covered by the dirty list
+	// to avoid uploading it twice.
+	indexNum := strings.TrimPrefix(filepath.Base(indexPath), "i")
+	isAlreadyDirty := false
+	for _, dirty := range dirtyIndices {
+		if dirty == indexNum {
+			isAlreadyDirty = true
+			break
+		}
+	}
+
+	if !isAlreadyDirty {
+		// Upload the main index file that triggered the jump
+		go h.uploadAndTrack(indexPath)
+	}
 
 	return nil
 }
