@@ -12,6 +12,7 @@ builds:
       - -tags=musl
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -extldflags "-static"
 
 archives:
   - formats: ["binary", "tar.gz"]
