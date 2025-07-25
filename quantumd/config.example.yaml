@@ -18,10 +18,10 @@ expected_shards: 4
 # zdb_connection_type: "mycelium" # optional, can be "mycelium", "ipv6", "ygg". defaults to mycelium
 # zdb_data_size: "2G" # optional, size of the zdb data directory in MB or GB. defaults to 2560M
 
-
 # Paths
 zdb_root_path: "/data"
 qsfs_mountpoint: "/mnt/qsfs"
 
 # Daemon configuration
 retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)
+zdb_rotate_time: 15s # Time interval for rotating ZDB data files
