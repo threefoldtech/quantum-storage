@@ -7,7 +7,6 @@ IMAGE_TAG=latest
 
 build:
 	go build -o $(BINARY_NAME) .
-	ln -sf $(BINARY_NAME) $(HOOK_NAME)
 
 docker-build: build
 	docker buildx build -t $(IMAGE_NAME):$(IMAGE_TAG) .

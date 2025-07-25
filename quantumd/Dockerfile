@@ -33,7 +33,6 @@ RUN echo "exec: /usr/local/bin/mycelium --peers tcp://185.69.166.82:9651 tcp://6
 
 # Copy pre-built binary and hook symlink
 COPY quantumd /usr/local/bin/quantumd
-COPY quantumd-hook /usr/local/bin/quantumd-hook
 
 # Copy default configuration file (for --local use)
 COPY config.example.yaml /etc/quantumd.yaml

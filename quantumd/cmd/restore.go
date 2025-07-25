@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
 )
@@ -117,7 +118,12 @@ func runRestore() error {
 		return errors.Wrap(err, "failed to generate zstor config")
 	}
 
-	// 4. Setup local machine (binaries, directories, services)
+	// 4. Setup hook symlink
+	if err := hook.SetupSymlink(); err != nil {
+		return fmt.Errorf("failed to setup hook symlink: %w", err)
+	}
+
+	// 5. Setup local machine (binaries, directories, services)
 	fmt.Println("Setting up local machine...")
 	serviceCfg := &service.Config{
 		Network:        cfg.Network,

@@ -375,3 +375,32 @@ func GetLocalHash(file string) string {
 	}
 	return ""
 }
+
+
+// SetupSymlink ensures the hook symlink is in place
+func SetupSymlink() error {
+	src, err := exec.LookPath("quantumd")
+	if err != nil {
+		return fmt.Errorf("could not find quantumd executable in PATH: %w", err)
+	}
+
+	dest := "/usr/local/bin/quantumd-hook"
+
+	// Check if the symlink already exists and points to the correct source
+	if fi, err := os.Lstat(dest); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			link, err := os.Readlink(dest)
+			if err == nil && link == src {
+				log.Printf("Symlink already exists and is correct: %s -> %s", dest, src)
+				return nil
+			}
+		}
+		// If it's not a symlink or points to the wrong place, remove it.
+		if err := os.Remove(dest); err != nil {
+			return fmt.Errorf("failed to remove existing file at %s: %w", dest, err)
+		}
+	}
+
+	log.Printf("Creating symlink from %s to %s", src, dest)
+	return os.Symlink(src, dest)
+}

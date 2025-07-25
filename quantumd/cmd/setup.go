@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 
 	"github.com/spf13/cobra"
@@ -88,6 +89,10 @@ func SetupQSFS(isLocal bool) error {
 
 	if err := downloadBinaries(); err != nil {
 		return fmt.Errorf("failed to download binaries: %w", err)
+	}
+
+	if err := hook.SetupSymlink(); err != nil {
+		return fmt.Errorf("failed to setup hook symlink: %w", err)
 	}
 
 	if err := createDirectories(cfg); err != nil {
