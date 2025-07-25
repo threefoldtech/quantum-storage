@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -25,6 +28,7 @@ type Config struct {
 	DatabasePath   string        `yaml:"database_path"`
 	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
 	ZdbConnectionType string `yaml:"zdb_connection_type"`
+	ZdbDataSize       string `yaml:"zdb_data_size"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -61,4 +65,29 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func parseSize(sizeStr string) (int, error) {
+	sizeStr = strings.ToUpper(strings.TrimSpace(sizeStr))
+	if sizeStr == "" {
+		return 0, nil
+	}
+
+	var multiplier int
+	if strings.HasSuffix(sizeStr, "G") {
+		multiplier = 1024
+		sizeStr = strings.TrimSuffix(sizeStr, "G")
+	} else if strings.HasSuffix(sizeStr, "M") {
+		multiplier = 1
+		sizeStr = strings.TrimSuffix(sizeStr, "M")
+	} else {
+		return 0, fmt.Errorf("invalid size format: %s. Must be in M or G (e.g. 10G, 500M)", sizeStr)
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size number: %w", err)
+	}
+
+	return size * multiplier, nil
 }

@@ -118,6 +118,7 @@ func SetupQSFS(isLocal bool) error {
 		RetryInterval:  cfg.RetryInterval,
 		DatabasePath:   cfg.DatabasePath,
 		ZdbRotateTime:  cfg.ZdbRotateTime,
+		ZdbDataSize:    cfg.ZdbDataSize,
 		MetaBackends:   []service.Backend{},
 		DataBackends:   []service.Backend{},
 	}
@@ -167,7 +168,24 @@ func startService(name string) error {
 
 func generateLocalZstorConfig() error {
 	fmt.Println("Generating local zstor config...")
-	config := `minimal_shards = 2
+	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
+	if err != nil {
+		// Fallback to a default if config is not present
+		cfg = &Config{}
+	}
+
+	zdbDataSizeMb := 64 // Default value
+	if cfg.ZdbDataSize != "" {
+		size, err := parseSize(cfg.ZdbDataSize)
+		if err != nil {
+			return fmt.Errorf("failed to parse zdb_data_size for local config: %w", err)
+		}
+		if size > 0 {
+			zdbDataSizeMb = size
+		}
+	}
+
+	config := fmt.Sprintf(`minimal_shards = 2
 expected_shards = 4
 redundant_groups = 0
 redundant_nodes = 0
@@ -176,7 +194,7 @@ zdbfs_mountpoint = "/mnt/"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
 zdb_data_dir_path = "/data/data/zdbfs-data/"
-max_zdb_data_dir_size = 64
+max_zdb_data_dir_size = %d
 
 [compression]
 algorithm = "snappy"
@@ -235,7 +253,7 @@ password = "zdbpassword"
 address = "127.0.0.1:9904"
 namespace = "data4"
 password = "zdbpassword"
-`
+`, zdbDataSizeMb)
 	return os.WriteFile("/etc/zstor.toml", []byte(config), 0644)
 }
 

@@ -271,6 +271,17 @@ func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
 		return errors.Wrap(err, "failed to generate key from mnemonic")
 	}
 
+	zdbDataSizeMb := 2560 // Default value
+	if cfg.ZdbDataSize != "" {
+		size, err := parseSize(cfg.ZdbDataSize)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse zdb_data_size")
+		}
+		if size > 0 {
+			zdbDataSizeMb = size
+		}
+	}
+
 	var configBuilder strings.Builder
 	configBuilder.WriteString(fmt.Sprintf(`minimal_shards = %d
 expected_shards = %d
@@ -281,7 +292,7 @@ zdbfs_mountpoint = "%s"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
 zdb_data_dir_path = "%s/data/zdbfs-data/"
-max_zdb_data_dir_size = 2560
+max_zdb_data_dir_size = %d
 
 [compression]
 algorithm = "snappy"
@@ -298,7 +309,7 @@ key = "%s"
 
 [meta.config.encryption]
 algorithm = "AES"
-key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, key, key))
+key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, zdbDataSizeMb, key, key))
 
 	// Add meta backends
 	for _, zdb := range meta {

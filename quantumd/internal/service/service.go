@@ -40,6 +40,7 @@ type Config struct {
 	RetryInterval  time.Duration `yaml:"retry_interval"`
 	DatabasePath   string        `yaml:"database_path"`
 	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
+	ZdbDataSize    string        `yaml:"zdb_data_size"`
 	MetaBackends   []Backend     `yaml:"-"`
 	DataBackends   []Backend     `yaml:"-"`
 }

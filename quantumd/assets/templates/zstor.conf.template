@@ -7,7 +7,7 @@ zdbfs_mountpoint = "{{.QsfsMountpoint}}"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
 zdb_data_dir_path = "{{.ZdbRootPath}}/data/zdbfs-data/"
-max_zdb_data_dir_size = 2560
+max_zdb_data_dir_size = {{.ZdbDataSizeMb}}
 
 [compression]
 algorithm = "snappy"
