@@ -58,29 +58,33 @@ quantumd setup
 
 That's it. Once the command finishes, your QSFS should be ready.
 
-### Daemon Mode
+### Init command
 
-The daemon mode runs continuously to handle hook events from zdb and periodically retry failed uploads:
+There's also an `init` command that does the deploy and setup operations in one step:
 
 ```
-quantumd
+quantumd init
+```
+
+### Restore
+
+If you need to move your QSFS deployment to a new frontend machine, you can do so using the `restore` command. This requires that the config file uses a matching deployment name and password:
+
+```
+quantumd restore
+```
+
+This one command will fully bring up the QSFS on the new machine. Note that operating multiple QSFS instances using the same config file or backends is not supported and may lead to data loss. Be sure that the old machine is permanently offline before restoring.
+
+### Daemon Mode
+
+The daemon mode runs continuously to handle hook events from zdb and periodically retry failed uploads. When using the built-in setup feature, a system service running the daemon mode will be added automatically. There's normally no need to run the command manually:
+
+```
+quantumd daemon
 ```
 
 This will:
 - Listen for hook events from zdb (close, ready, namespace updates, etc.)
 - Periodically scan for failed uploads and retry them
-- Track uploaded files in SQLite database for robust retry handling
-- Send metrics to Prometheus pushgateway if available
-- Automatically migrate from legacy text file tracking
-
-Configuration options:
-
-```yaml
-retry_interval: 10m  # Default is 10 minutes
-database_path: "/data/uploaded_files.db"  # SQLite database location
-```
-
-Or set via environment variable:
-```bash
-export RETRY_INTERVAL=5m
-```
+- Track uploaded files in SQLite database as a local cache to make retry handling efficient
