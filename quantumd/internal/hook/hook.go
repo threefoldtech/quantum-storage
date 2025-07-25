@@ -145,7 +145,7 @@ func (h *Handler) dispatchHook(action string, args []string) error {
 		}
 		var dirtyList []string
 		if len(args) >= 4 {
-			dirtyList = strings.Fields(args[3])
+			dirtyList = args[3:]
 		}
 		return h.handleJumpIndex(args[1], dirtyList)
 	case "jump-data":
