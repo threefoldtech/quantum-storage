@@ -24,4 +24,4 @@ qsfs_mountpoint: "/mnt/qsfs"
 
 # Daemon configuration
 retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)
-zdb_rotate_time: 15s # Time interval for rotating ZDB data files
+zdb_rotate_time: 15m # Time interval for rotating ZDB data files
