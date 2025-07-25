@@ -1,0 +1,11 @@
+exec: |
+  /usr/local/bin/zdb
+    --index {{.ZdbRootPath}}/index
+    --data {{.ZdbRootPath}}/data
+    --logfile /var/log/zdb.log
+    --datasize 67108864
+    --hook /usr/local/bin/quantumd-hook \
+    --rotate {{.ZdbRotateTime.Seconds}}
+
+shutdown_timeout: 60
+after: [zstor, quantumd]

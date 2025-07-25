@@ -1,0 +1,21 @@
+[Unit]
+Wants=network.target zstor.service
+After=network.target zstor.service
+
+[Service]
+ProtectHome=true
+ProtectSystem=true
+ReadWritePaths={{.ZdbRootPath}} /var/log
+ExecStart=/usr/local/bin/zdbfs \
+  --backend zstor://{{.QsfsMountpoint}} \
+  --log-level info \
+  --cache-size 5120 \
+  --cache-shards 1024 \
+  --zstor-socket /tmp/zstor.sock \
+  {{.QsfsMountpoint}}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

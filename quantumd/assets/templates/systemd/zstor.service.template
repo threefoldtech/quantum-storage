@@ -1,0 +1,19 @@
+[Unit]
+Wants=network.target
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+ProtectHome=true
+ProtectSystem=true
+ReadWritePaths={{.ZdbRootPath}} /var/log
+ExecStart=/usr/local/bin/zstor \
+  --log_file /var/log/zstor.log \
+  -c /etc/zstor.toml \
+  monitor
+Restart=always
+RestartSec=100ms
+TimeoutStopSec=5m
+
+[Install]
+WantedBy=multi-user.target
