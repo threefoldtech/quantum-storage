@@ -169,9 +169,8 @@ func runRestore() error {
 		"--index", cfg.ZdbRootPath+"/index",
 		"--data", cfg.ZdbRootPath+"/data",
 		"--logfile", "/var/log/zdb.log",
-		"--datasize", "67108864",
+		"--datasize", cfg.ZdbDataSize,
 		"--hook", "/usr/local/bin/quantumd-hook",
-		"--rotate", "900",
 	)
 	zdbCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := zdbCmd.Start(); err != nil {
