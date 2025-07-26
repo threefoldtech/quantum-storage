@@ -17,7 +17,7 @@ So far a subset of functionality has been implemented and heavy changes are expe
 First get yourself a binary. You can grab a release artifact from this repo:
 
 ```bash
-wget https://github.com/threefoldtech/quantum-storage/releases/download/v0.4.0-rc5/quantumd_0.4.0-rc5_linux_amd64 -O /usr/local/bin/quantumd
+wget https://github.com/threefoldtech/quantum-storage/releases/download/v0.4.0-rc6/quantumd_0.4.0-rc6_linux_amd64 -O /usr/local/bin/quantumd
 chmod +x /usr/local/bin/quantumd
 ```
 
