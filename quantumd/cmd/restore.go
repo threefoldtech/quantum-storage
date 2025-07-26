@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -176,9 +177,10 @@ func runRestore() error {
 		"--datasize", cfg.ZdbDataSize,
 		"--hook", "/usr/local/bin/quantumd-hook",
 	)
-	zdbCmd.Stdout = os.Stdout
-	zdbCmd.Stderr = os.Stderr
 	zdbCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	var out bytes.Buffer
+	zdbCmd.Stdout = &out
+	zdbCmd.Stderr = &out
 	if err := zdbCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start temporary zdb process: %w", err)
 	}
@@ -194,6 +196,7 @@ func runRestore() error {
 
 	// Wait for services to be ready
 	if err := waitForServices(); err != nil {
+		fmt.Printf("zdb command output:\n%s\n", out.String())
 		return errors.Wrap(err, "services did not start in time")
 	}
 
