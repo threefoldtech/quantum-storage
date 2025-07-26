@@ -271,16 +271,11 @@ func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
 		return errors.Wrap(err, "failed to generate key from mnemonic")
 	}
 
-	zdbDataSizeMb := 2560 // Default value
-	if cfg.ZdbDataSize != "" {
-		size, err := parseSize(cfg.ZdbDataSize)
-		if err != nil {
-			return errors.Wrap(err, "failed to parse zdb_data_size")
-		}
-		if size > 0 {
-			zdbDataSizeMb = size
-		}
+	size, err := parseSize(cfg.ZdbDataSize)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse zdb_data_size")
 	}
+	zdbDataSizeMb := size
 
 	var configBuilder strings.Builder
 	configBuilder.WriteString(fmt.Sprintf(`minimal_shards = %d

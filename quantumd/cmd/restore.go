@@ -176,6 +176,8 @@ func runRestore() error {
 		"--datasize", cfg.ZdbDataSize,
 		"--hook", "/usr/local/bin/quantumd-hook",
 	)
+	zdbCmd.Stdout = os.Stdout
+	zdbCmd.Stderr = os.Stderr
 	zdbCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := zdbCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start temporary zdb process: %w", err)

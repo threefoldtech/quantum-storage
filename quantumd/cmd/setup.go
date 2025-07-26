@@ -179,16 +179,11 @@ func generateLocalZstorConfig() error {
 		cfg = &Config{}
 	}
 
-	zdbDataSizeMb := 64 // Default value
-	if cfg.ZdbDataSize != "" {
-		size, err := parseSize(cfg.ZdbDataSize)
-		if err != nil {
-			return fmt.Errorf("failed to parse zdb_data_size for local config: %w", err)
-		}
-		if size > 0 {
-			zdbDataSizeMb = size
-		}
+	size, err := parseSize(cfg.ZdbDataSize)
+	if err != nil {
+		return fmt.Errorf("failed to parse zdb_data_size for local config: %w", err)
 	}
+	zdbDataSizeMb := size
 
 	config := fmt.Sprintf(`minimal_shards = 2
 expected_shards = 4

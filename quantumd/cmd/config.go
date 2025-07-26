@@ -11,24 +11,24 @@ import (
 )
 
 type Config struct {
-	Network        string        `yaml:"network"`
-	Mnemonic       string        `yaml:"mnemonic"`
-	DeploymentName string        `yaml:"deployment_name"`
-	MetaNodes      []uint32      `yaml:"meta_nodes"`
-	DataNodes      []uint32      `yaml:"data_nodes"`
-	Password       string        `yaml:"password"`
-	MetaSizeGb     int           `yaml:"meta_size_gb"`
-	DataSizeGb     int           `yaml:"data_size_gb"`
-	MinShards      int           `yaml:"min_shards"`
-	ExpectedShards int           `yaml:"expected_shards"`
-	ZdbRootPath    string        `yaml:"zdb_root_path"`
-	QsfsMountpoint string        `yaml:"qsfs_mountpoint"`
-	CachePath      string        `yaml:"cache_path"`
-	RetryInterval  time.Duration `yaml:"retry_interval"`
-	DatabasePath   string        `yaml:"database_path"`
-	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
-	ZdbConnectionType string `yaml:"zdb_connection_type"`
-	ZdbDataSize       string `yaml:"zdb_data_size"`
+	Network           string        `yaml:"network"`
+	Mnemonic          string        `yaml:"mnemonic"`
+	DeploymentName    string        `yaml:"deployment_name"`
+	MetaNodes         []uint32      `yaml:"meta_nodes"`
+	DataNodes         []uint32      `yaml:"data_nodes"`
+	Password          string        `yaml:"password"`
+	MetaSizeGb        int           `yaml:"meta_size_gb"`
+	DataSizeGb        int           `yaml:"data_size_gb"`
+	MinShards         int           `yaml:"min_shards"`
+	ExpectedShards    int           `yaml:"expected_shards"`
+	ZdbRootPath       string        `yaml:"zdb_root_path"`
+	QsfsMountpoint    string        `yaml:"qsfs_mountpoint"`
+	CachePath         string        `yaml:"cache_path"`
+	RetryInterval     time.Duration `yaml:"retry_interval"`
+	DatabasePath      string        `yaml:"database_path"`
+	ZdbRotateTime     time.Duration `yaml:"zdb_rotate_time"`
+	ZdbConnectionType string        `yaml:"zdb_connection_type"`
+	ZdbDataSize       string        `yaml:"zdb_data_size"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -62,6 +62,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.ZdbConnectionType == "" {
 		cfg.ZdbConnectionType = "mycelium"
+	}
+	if cfg.ZdbDataSize == "" {
+		cfg.ZdbDataSize = "64M"
 	}
 
 	return &cfg, nil

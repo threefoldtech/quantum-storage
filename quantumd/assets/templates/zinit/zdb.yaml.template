@@ -3,7 +3,7 @@ exec: |
     --index {{.ZdbRootPath}}/index
     --data {{.ZdbRootPath}}/data
     --logfile /var/log/zdb.log
-    --datasize 67108864
+    --datasize {{.ZdbDataSize}}
     --hook /usr/local/bin/quantumd-hook \
     --rotate {{.ZdbRotateTime.Seconds}}
 

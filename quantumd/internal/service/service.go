@@ -88,7 +88,7 @@ func (s *SystemdManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
 		}
 	}
 	if isLocal {
-		return s.createLocalSystemdBackends()
+		return s.createLocalSystemdBackends(cfg.ZdbDataSize)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (s *SystemdManager) DaemonReload() error {
 	return exec.Command("systemctl", "daemon-reload").Run()
 }
 
-func (s *SystemdManager) createLocalSystemdBackends() error {
+func (s *SystemdManager) createLocalSystemdBackends(zdbDataSize string) error {
 	for i, port := range []int{9901, 9902, 9903, 9904} {
 		service := fmt.Sprintf(`[Unit]
 Description=Local ZDB Backend %d
@@ -126,13 +126,13 @@ ExecStart=/usr/local/bin/zdb \
     --data=/data/data%d \
     --index=/data/index%d \
     --logfile=/var/log/zdb%d.log \
-    --datasize 67108864 \
+    --datasize %s \
 Restart=always
 RestartSec=5
 TimeoutStopSec=60
 
 [Install]
-WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1)
+WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1, zdbDataSize)
 
 		path := fmt.Sprintf("/etc/systemd/system/zdb-back%d.service", i+1)
 		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
