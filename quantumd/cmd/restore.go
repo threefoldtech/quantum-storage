@@ -39,6 +39,10 @@ func init() {
 }
 
 func runRestore() error {
+	if err := DownloadBinaries(); err != nil {
+		return fmt.Errorf("failed to download binaries: %w", err)
+	}
+
 	cfg, err := LoadConfig(ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)

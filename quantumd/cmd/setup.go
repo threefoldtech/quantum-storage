@@ -87,7 +87,7 @@ func SetupQSFS(isLocal bool) error {
 		}
 	}
 
-	if err := downloadBinaries(); err != nil {
+	if err := DownloadBinaries(); err != nil {
 		return fmt.Errorf("failed to download binaries: %w", err)
 	}
 
@@ -356,7 +356,7 @@ func needsDownload(binaryName, expectedVersion string) (bool, error) {
 	fmt.Printf("Binary %s has version %s, expected %s, will download\n", binaryName, currentVersion, expectedVersion)
 	return true, nil
 }
-func downloadBinaries() error {
+func DownloadBinaries() error {
 	binaries := map[string]string{
 		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
 		"zdb":   fmt.Sprintf("https://github.com/threefoldtech/0-db/releases/download/v%s/zdb-%s-linux-amd64-static", zdbVersion, zdbVersion),
