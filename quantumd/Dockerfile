@@ -25,8 +25,8 @@ RUN wget -O /tmp/mycelium.tar.gz https://github.com/threefoldtech/mycelium/relea
     tar -xvf /tmp/mycelium.tar.gz -C /tmp && \
     mv /tmp/mycelium /usr/local/bin/mycelium
 
-# Create required directories
-RUN mkdir -p /data /mnt/qsfs /var/log /etc/zinit
+# Create zinit config directory
+RUN mkdir -p /etc/zinit
 
 # Create zinit config for mycelium
 RUN echo "exec: /usr/local/bin/mycelium --peers tcp://185.69.166.82:9651 tcp://65.109.18.113:9651 tcp://5.78.122.16:9651 tcp://5.223.43.251:9651 tcp://142.93.217.194:9651" > /etc/zinit/mycelium.yaml
