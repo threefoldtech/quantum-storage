@@ -95,7 +95,7 @@ func SetupQSFS(isLocal bool) error {
 		return fmt.Errorf("failed to setup hook symlink: %w", err)
 	}
 
-	if err := createDirectories(cfg); err != nil {
+	if err := CreateDirectories(cfg, isLocal); err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
@@ -399,7 +399,7 @@ func DownloadBinaries() error {
 	return nil
 }
 
-func createDirectories(cfg *Config) error {
+func CreateDirectories(cfg *Config, localMode bool) error {
 	dirs := []string{
 		cfg.QsfsMountpoint,
 		cfg.ZdbRootPath,
