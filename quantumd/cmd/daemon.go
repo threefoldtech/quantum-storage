@@ -95,7 +95,7 @@ type retryManager struct {
 	zdbRootPath   string
 	interval      time.Duration
 	uploadTracker *uploadTracker
-	zstor         hook.ZstorClient
+	zstor         *zstor.Client
 }
 
 func newUploadTracker(dbPath string) (*uploadTracker, error) {
@@ -153,7 +153,7 @@ func (ut *uploadTracker) MarkUploaded(filePath, hash string, fileSize int64) err
 	return err
 }
 
-func newRetryManager(cfg *Config, tracker *uploadTracker, zstorClient hook.ZstorClient) (*retryManager, error) {
+func newRetryManager(cfg *Config, tracker *uploadTracker, zstorClient *zstor.Client) (*retryManager, error) {
 	interval := cfg.RetryInterval
 	if interval <= 0 {
 		interval = defaultRetryInterval
