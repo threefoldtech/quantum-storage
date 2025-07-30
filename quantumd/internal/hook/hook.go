@@ -25,24 +25,17 @@ type UploadTracker interface {
 	IsUploaded(filePath string) (bool, error)
 }
 
-// ZstorClient defines the interface for interacting with the zstor binary.
-type ZstorClient interface {
-	Store(filePath string, isIndex, useSnapshot bool) error
-	Check(filePath string) (string, error)
-	Retrieve(filePath string) error
-	Test() error
-}
 
 // Handler manages hook dispatching
 type Handler struct {
 	ZstorIndex    string
 	ZstorData     string
 	UploadTracker UploadTracker
-	Zstor         ZstorClient
+	Zstor         *zstor.Client
 }
 
 // NewHandler creates a new hook handler
-func NewHandler(zdbRootPath string, tracker UploadTracker, zstorClient ZstorClient) (*Handler, error) {
+func NewHandler(zdbRootPath string, tracker UploadTracker, zstorClient *zstor.Client) (*Handler, error) {
 	h := &Handler{
 		ZstorIndex:    filepath.Join(zdbRootPath, "index"),
 		ZstorData:     filepath.Join(zdbRootPath, "data"),
