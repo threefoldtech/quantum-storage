@@ -11,7 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
-	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
 func init() {
@@ -89,7 +89,7 @@ func checkAndPrintHashes(dbPath string) error {
 			status = "Missing"
 			notFound++
 		} else {
-			localHash = hook.GetLocalHash(filePath)
+			localHash = zstor.GetLocalHash(filePath)
 			if dbHash == localHash {
 				status = "OK"
 			} else {
