@@ -179,7 +179,7 @@ func (h *Handler) uploadAndTrack(filePath string, isIndex bool) {
 	}
 
 	// For hooks, we always use a snapshot for index files to ensure atomicity.
-	if err := h.Zstor.Store(filePath, isIndex, isIndex); err != nil {
+	if err := h.Zstor.Store(filePath, isIndex); err != nil {
 		log.Printf("Failed to upload %s: %v", filePath, err)
 		return
 	}
