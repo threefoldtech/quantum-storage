@@ -275,7 +275,7 @@ func (rm *retryManager) checkAndUploadFile(file string, isIndex bool) {
 	if remoteHash == "" || remoteHash != localHash {
 		log.Printf("Uploading %s (remote: %s, local: %s)", file, remoteHash, localHash)
 		// For the retry manager, we always use a snapshot for index files.
-		if err := rm.zstor.Store(file, isIndex, isIndex); err != nil {
+		if err := rm.zstor.Store(file, isIndex); err != nil {
 			log.Printf("Failed to upload %s: %v", file, err)
 			return
 		}
