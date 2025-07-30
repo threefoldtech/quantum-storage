@@ -164,9 +164,7 @@ func (h *Handler) uploadAndTrack(filePath string, isIndex bool) {
 		return
 	}
 
-	isDataFile := !isIndex
-
-	if isDataFile {
+	if !isIndex { // This is a data file
 		uploaded, err := h.UploadTracker.IsUploaded(filePath)
 		if err != nil {
 			log.Printf("Failed to check upload status for %s: %v", filePath, err)
@@ -178,19 +176,30 @@ func (h *Handler) uploadAndTrack(filePath string, isIndex bool) {
 		}
 	}
 
-	// For hooks, we always use a snapshot for index files to ensure atomicity.
-	if err := h.Zstor.Store(filePath, isIndex); err != nil {
-		log.Printf("Failed to upload %s: %v", filePath, err)
+	var uploadErr error
+	if isIndex {
+		// Use StoreBatch for all index files to ensure atomicity and correct pathing.
+		uploadErr = h.Zstor.StoreBatch([]string{filePath}, filepath.Dir(filePath))
+	} else {
+		// Use the simplified Store for data files.
+		uploadErr = h.Zstor.Store(filePath)
+	}
+
+	if uploadErr != nil {
+		log.Printf("Failed to upload %s: %v", filePath, uploadErr)
 		return
 	}
 
-	hash := zstor.GetLocalHash(filePath)
-	if hash == "" {
-		log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
-		return
-	}
-	if err := h.UploadTracker.MarkUploaded(filePath, hash, fileInfo.Size()); err != nil {
-		log.Printf("Failed to mark file as uploaded: %v", err)
+	// Only track data files in the database. Index files are handled by the retry manager.
+	if !isIndex {
+		hash := zstor.GetLocalHash(filePath)
+		if hash == "" {
+			log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
+			return
+		}
+		if err := h.UploadTracker.MarkUploaded(filePath, hash, fileInfo.Size()); err != nil {
+			log.Printf("Failed to mark file as uploaded: %v", err)
+		}
 	}
 }
 
@@ -247,25 +256,32 @@ func (h *Handler) handleJumpIndex(indexPath string, dirtyIndices []string) error
 	}
 
 	dirBase := filepath.Dir(indexPath)
+	filesToUpload := make(map[string]struct{})
 
+	// Add all dirty indices to the set
 	for _, dirty := range dirtyIndices {
 		fileName := fmt.Sprintf("i%s", dirty)
 		src := filepath.Join(dirBase, fileName)
-		go h.uploadAndTrack(src, true)
+		filesToUpload[src] = struct{}{}
 	}
 
-	indexNum := strings.TrimPrefix(filepath.Base(indexPath), "i")
-	isAlreadyDirty := false
-	for _, dirty := range dirtyIndices {
-		if dirty == indexNum {
-			isAlreadyDirty = true
-			break
+	// Add the current index file if it's not already in the dirty list
+	filesToUpload[indexPath] = struct{}{}
+
+	// Convert map keys to a slice
+	uploadList := make([]string, 0, len(filesToUpload))
+	for file := range filesToUpload {
+		uploadList = append(uploadList, file)
+	}
+
+	// Upload all files in a single batch
+	go func() {
+		if err := h.Zstor.StoreBatch(uploadList, dirBase); err != nil {
+			log.Printf("Failed to upload index batch for namespace %s: %v", namespace, err)
+		} else {
+			log.Printf("Successfully uploaded index batch for namespace %s", namespace)
 		}
-	}
-
-	if !isAlreadyDirty {
-		go h.uploadAndTrack(indexPath, true)
-	}
+	}()
 
 	return nil
 }

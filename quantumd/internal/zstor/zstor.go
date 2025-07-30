@@ -33,40 +33,14 @@ func NewClient(binaryPath, configPath string) (*Client, error) {
 	}, nil
 }
 
-// Store uploads a file to zstor. It handles both data and index files.
-// For index files, it can create a temporary snapshot to ensure atomicity.
-func (c *Client) Store(filePath string, useSnapshot bool) error {
+// Store uploads a single file to zstor. This is primarily for data files.
+// Index files should use StoreBatch.
+func (c *Client) Store(filePath string) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil // Don't treat non-existent files as an error
 	}
 
-	uploadPath := filePath
-	var tmpDir string
-	var err error
-
-	if useSnapshot {
-		// Create a temporary directory for the snapshot
-		tmpDir, err = os.MkdirTemp("/tmp", "zstor-upload-")
-		if err != nil {
-			return fmt.Errorf("failed to create temp dir for index snapshot: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-
-		// Copy the index file to the temp directory
-		tmpPath := filepath.Join(tmpDir, filepath.Base(filePath))
-		if err := copyFile(filePath, tmpPath); err != nil {
-			return fmt.Errorf("failed to copy index file to temp dir: %w", err)
-		}
-		uploadPath = tmpPath
-	}
-
-	args := []string{"-c", c.ConfigPath, "store", "-s", "--file", uploadPath}
-	if useSnapshot {
-		// When a key is provided, zstor uses the basename of the file being uploaded
-		// and constructs the final remote path relative to the key directory.
-		// For index files, we want the remote path to be the original file path.
-		args = append(args, "-k", filepath.Dir(filePath))
-	}
+	args := []string{"-c", c.ConfigPath, "store", "-s", "--file", filePath}
 
 	cmd := exec.Command(c.BinaryPath, args...)
 	log.Printf("Executing: %s", cmd.String())
@@ -79,6 +53,44 @@ func (c *Client) Store(filePath string, useSnapshot bool) error {
 	log.Printf("Successfully stored: %s", filePath)
 	return nil
 }
+
+// StoreBatch uploads a batch of files from a temporary directory.
+func (c *Client) StoreBatch(files []string, originalDir string) error {
+	if len(files) == 0 {
+		return nil
+	}
+
+	tmpDir, err := os.MkdirTemp("/tmp", "zstor-batch-upload-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir for batch upload: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, file := range files {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			continue // Skip non-existent files
+		}
+		tmpPath := filepath.Join(tmpDir, filepath.Base(file))
+		if err := copyFile(file, tmpPath); err != nil {
+			return fmt.Errorf("failed to copy file %s to temp dir: %w", file, err)
+		}
+	}
+
+	// -d for directory mode, -f for file (which is actually the directory path here)
+	args := []string{"-c", c.ConfigPath, "store", "-s", "-d", "-f", tmpDir, "-k", originalDir}
+
+	cmd := exec.Command(c.BinaryPath, args...)
+	log.Printf("Executing batch store: %s", cmd.String())
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to store batch from %s: %v. Output: %s", tmpDir, err, string(output))
+	}
+
+	log.Printf("Successfully stored batch from: %s", tmpDir)
+	return nil
+}
+
 
 // Check retrieves the remote hash of a file.
 func (c *Client) Check(filePath string) (string, error) {

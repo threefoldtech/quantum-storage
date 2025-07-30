@@ -239,10 +239,25 @@ func (rm *retryManager) processFiles(namespace, fileType string) {
 
 	filesToProcess := files[:len(files)-1]
 
-	for _, file := range filesToProcess {
-		if isIndex {
-			rm.checkAndUploadFile(file, true)
-		} else {
+	if isIndex {
+		// Batch upload for index files
+		var filesToUpload []string
+		for _, file := range filesToProcess {
+			// For index files, we always check them.
+			// A more optimized way would be to check hashes, but for simplicity
+			// and robustness, we re-upload the batch if any are out of sync.
+			// Here we just add all to a list to be uploaded in one go.
+			filesToUpload = append(filesToUpload, file)
+		}
+		if len(filesToUpload) > 0 {
+			log.Printf("Batch uploading %d index files for namespace %s", len(filesToUpload), namespace)
+			if err := rm.zstor.StoreBatch(filesToUpload, basePath); err != nil {
+				log.Printf("Failed to batch upload index files for namespace %s: %v", namespace, err)
+			}
+		}
+	} else {
+		// Process data files individually
+		for _, file := range filesToProcess {
 			uploaded, err := rm.uploadTracker.IsUploaded(file)
 			if err != nil {
 				log.Printf("Failed to check upload status for %s: %v", file, err)
@@ -274,9 +289,17 @@ func (rm *retryManager) checkAndUploadFile(file string, isIndex bool) {
 
 	if remoteHash == "" || remoteHash != localHash {
 		log.Printf("Uploading %s (remote: %s, local: %s)", file, remoteHash, localHash)
-		// For the retry manager, we always use a snapshot for index files.
-		if err := rm.zstor.Store(file, isIndex); err != nil {
-			log.Printf("Failed to upload %s: %v", file, err)
+		var uploadErr error
+		if isIndex {
+			// Use StoreBatch for all index files to ensure atomicity and correct pathing.
+			uploadErr = rm.zstor.StoreBatch([]string{file}, filepath.Dir(file))
+		} else {
+			// Use the simplified Store for data files.
+			uploadErr = rm.zstor.Store(file)
+		}
+
+		if uploadErr != nil {
+			log.Printf("Failed to upload %s: %v", file, uploadErr)
 			return
 		}
 		log.Printf("Successfully uploaded: %s", file)
