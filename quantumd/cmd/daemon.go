@@ -334,8 +334,16 @@ func (rm *retryManager) processFiles(namespace, fileType, tmpDir string) {
 
 	for _, file := range filesToProcess {
 		if fileType == "index" {
-			// Copy index files to temp directory to avoid concurrent access issues
-			tmpPath := filepath.Join(tmpDir, namespace+"_"+filepath.Base(file))
+			// Create a subdirectory for the namespace to prevent file collisions
+			nsTmpDir := filepath.Join(tmpDir, namespace)
+			if err := os.MkdirAll(nsTmpDir, 0755); err != nil {
+				log.Printf("Failed to create temp namespace dir %s: %v", nsTmpDir, err)
+				continue
+			}
+
+			// Copy index files to temp directory, preserving the original basename.
+			// This is important for zstor to construct the correct remote key.
+			tmpPath := filepath.Join(nsTmpDir, filepath.Base(file))
 			if err := copyFile(file, tmpPath); err != nil {
 				log.Printf("Failed to copy index file %s: %v", file, err)
 				continue
@@ -396,7 +404,12 @@ func (rm *retryManager) checkAndUploadFile(file, key string) {
 		// Use a single attempt version of runZstor for retry manager
 		args := []string{"-c", rm.handler.ZstorConf, "store", "-s", "--file", file}
 		if key != "" {
-			args = append(args, "-k", key)
+			// When a key is provided, it's for a retry of an index file.
+			// The 'file' is a temporary copy. The 'key' is the original path.
+			// zstor's `-k` flag expects a directory, and it will use the basename
+			// of the file being uploaded to construct the final remote path.
+			// So, we pass the directory of the original path as the key.
+			args = append(args, "-k", filepath.Dir(key))
 		}
 		cmd := exec.Command(rm.handler.ZstorBin, args...)
 		log.Printf("Executing: %s", cmd.String())
