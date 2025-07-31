@@ -153,6 +153,48 @@ func (ut *uploadTracker) MarkUploaded(filePath, hash string, fileSize int64) err
 	return err
 }
 
+func (ut *uploadTracker) GetUploadedFileHash(filePath string) (string, error) {
+	var hash string
+	err := ut.db.QueryRow("SELECT hash FROM uploaded_files WHERE file_path = ?", filePath).Scan(&hash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // Not found is not an error, just return empty hash
+		}
+		return "", err
+	}
+	return hash, nil
+}
+
+func (ut *uploadTracker) MarkUploadedBatch(filesToUpdate map[string]string) error {
+	tx, err := ut.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // Rollback on error
+
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO uploaded_files (file_path, hash, file_size, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for filePath, hash := range filesToUpdate {
+		var fileSize int64
+		if info, err := os.Stat(filePath); err == nil {
+			fileSize = info.Size()
+		}
+
+		if _, err := stmt.Exec(filePath, hash, fileSize); err != nil {
+			return fmt.Errorf("failed to mark '%s' as uploaded in batch: %w", filePath, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 func newRetryManager(cfg *Config, tracker *uploadTracker, zstorClient *zstor.Client) (*retryManager, error) {
 	interval := cfg.RetryInterval
 	if interval <= 0 {
@@ -240,19 +282,39 @@ func (rm *retryManager) processFiles(namespace, fileType string) {
 	filesToProcess := files[:len(files)-1]
 
 	if isIndex {
-		// Batch upload for index files
+		// For index files, check local cache and upload only what's needed.
 		var filesToUpload []string
+		filesToMark := make(map[string]string)
+
 		for _, file := range filesToProcess {
-			// For index files, we always check them.
-			// A more optimized way would be to check hashes, but for simplicity
-			// and robustness, we re-upload the batch if any are out of sync.
-			// Here we just add all to a list to be uploaded in one go.
-			filesToUpload = append(filesToUpload, file)
+			localHash := zstor.GetLocalHash(file)
+			if localHash == "" {
+				log.Printf("Failed to get local hash for index file %s, skipping", file)
+				continue
+			}
+
+			storedHash, err := rm.uploadTracker.GetUploadedFileHash(file)
+			if err != nil {
+				log.Printf("Failed to check local cache for index file %s: %v", file, err)
+				continue
+			}
+
+			if localHash != storedHash {
+				log.Printf("Index file %s needs upload (stored: '%s', local: '%s')", file, storedHash, localHash)
+				filesToUpload = append(filesToUpload, file)
+				filesToMark[file] = localHash
+			}
 		}
+
 		if len(filesToUpload) > 0 {
-			log.Printf("Batch uploading %d index files for namespace %s", len(filesToUpload), namespace)
+			log.Printf("Batch uploading %d out-of-sync index files for namespace %s", len(filesToUpload), namespace)
 			if err := rm.zstor.StoreBatch(filesToUpload, basePath); err != nil {
 				log.Printf("Failed to batch upload index files for namespace %s: %v", namespace, err)
+			} else {
+				// Mark them as uploaded in the local cache after successful upload
+				if err := rm.uploadTracker.MarkUploadedBatch(filesToMark); err != nil {
+					log.Printf("Failed to mark batch of index files as uploaded for namespace %s: %v", namespace, err)
+				}
 			}
 		}
 	} else {
