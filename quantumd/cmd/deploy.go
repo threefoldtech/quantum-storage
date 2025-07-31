@@ -275,7 +275,7 @@ func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to parse zdb_data_size")
 	}
-	zdbDataSizeMb := size
+	zdbDataSizeMb := size / (1024 * 1024)
 
 	var configBuilder strings.Builder
 	configBuilder.WriteString(fmt.Sprintf(`minimal_shards = %d
