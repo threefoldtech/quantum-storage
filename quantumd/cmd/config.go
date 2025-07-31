@@ -29,6 +29,7 @@ type Config struct {
 	ZdbRotateTime     time.Duration `yaml:"zdb_rotate_time"`
 	ZdbConnectionType string        `yaml:"zdb_connection_type"`
 	ZdbDataSize       string        `yaml:"zdb_data_size"`
+	PrometheusPort    int           `yaml:"prometheus_port"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -65,6 +66,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.ZdbDataSize == "" {
 		cfg.ZdbDataSize = "64M"
+	}
+	if cfg.PrometheusPort == 0 {
+		cfg.PrometheusPort = 9092
 	}
 
 	// Validate ZdbDataSize

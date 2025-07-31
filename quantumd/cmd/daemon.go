@@ -4,19 +4,34 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
+
+var (
+	lastRetryRunTime = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "last_retry_run_time",
+			Help: "The timestamp of the last successful retry cycle.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(lastRetryRunTime)
+}
+
 
 var daemonCmd = &cobra.Command{
 	Use:   "daemon",
@@ -57,9 +72,19 @@ var daemonCmd = &cobra.Command{
 
 		go handler.ListenAndServe()
 		go retryManager.start()
+		go startPrometheusServer(cfg.PrometheusPort)
 
 		select {}
 	},
+}
+
+func startPrometheusServer(port int) {
+	http.Handle("/metrics", promhttp.Handler())
+	addr := fmt.Sprintf(":%d", port)
+	log.Printf("Prometheus server listening on %s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Fatalf("Failed to start Prometheus server: %v", err)
+	}
 }
 
 func loadDaemonConfig(cmd *cobra.Command) (*Config, error) {
@@ -401,19 +426,7 @@ func extractNumber(filename string) int {
 }
 
 func (rm *retryManager) sendMetrics() {
-	if _, err := exec.LookPath("pgrep"); err != nil {
-		return // pgrep not available
-	}
-	if err := exec.Command("pgrep", "prometheus-push").Run(); err != nil {
-		return // Pushgateway not running
-	}
-
-	timestamp := time.Now().Unix()
-	metrics := fmt.Sprintf("# TYPE last_retry_run_time gauge\nlast_retry_run_time %d\n", timestamp)
-
-	curlCmd := exec.Command("curl", "-s", "--data-binary", "@-", "localhost:9091/metrics/job/qsfs_retry_uploads")
-	curlCmd.Stdin = strings.NewReader(metrics)
-	if err := curlCmd.Run(); err != nil {
-		log.Printf("Failed to send metrics to pushgateway: %v", err)
-	}
+	timestamp := float64(time.Now().Unix())
+	lastRetryRunTime.Set(timestamp)
+	log.Println("Updated last_retry_run_time metric.")
 }
