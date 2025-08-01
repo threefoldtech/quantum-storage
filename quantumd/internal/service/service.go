@@ -20,6 +20,8 @@ type ServiceManager interface {
 	DisableService(name string) error
 	StopService(name string) error
 	DaemonReload() error
+	ServiceExists(name string) (bool, error)
+	ServiceIsRunning(name string) (bool, error)
 }
 
 // Config mirrors the fields from cmd.Config needed for templates.
@@ -114,6 +116,26 @@ func (s *SystemdManager) DaemonReload() error {
 	return exec.Command("systemctl", "daemon-reload").Run()
 }
 
+func (s *SystemdManager) ServiceExists(name string) (bool, error) {
+	_, err := os.Stat(fmt.Sprintf("/etc/systemd/system/%s.service", name))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *SystemdManager) ServiceIsRunning(name string) (bool, error) {
+	cmd := exec.Command("systemctl", "is-active", "--quiet", name)
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	if _, ok := err.(*exec.ExitError); ok {
+		return false, nil
+	}
+	return false, err
+}
+
 func (s *SystemdManager) createLocalSystemdBackends(zdbDataSize string) error {
 	for i, port := range []int{9901, 9902, 9903, 9904} {
 		service := fmt.Sprintf(`[Unit]
@@ -190,6 +212,29 @@ func (z *ZinitManager) StopService(name string) error {
 func (z *ZinitManager) DaemonReload() error {
 	// zinit automatically reloads on changes
 	return nil
+}
+
+func (z *ZinitManager) ServiceExists(name string) (bool, error) {
+	_, err := os.Stat(filepath.Join("/etc/zinit", name+".yaml"))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (z *ZinitManager) ServiceIsRunning(name string) (bool, error) {
+	cmd := exec.Command("zinit", "status", name)
+	output, err := cmd.Output()
+	if err != nil {
+		// If the service does not exist, zinit status returns an error.
+		// We can treat this as "not running".
+		if strings.Contains(string(output), "no such service") || strings.Contains(string(err.Error()), "exit status 1") {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return strings.Contains(string(output), "state: Running"), nil
 }
 
 func (z *ZinitManager) createLocalZinitBackends() error {
