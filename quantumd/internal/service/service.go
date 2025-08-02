@@ -24,6 +24,9 @@ type ServiceManager interface {
 	ServiceIsRunning(name string) (bool, error)
 }
 
+// ManagedServices is the list of services quantumd manages
+var ManagedServices = []string{"zdb", "zstor", "zdbfs", "quantumd"}
+
 // Config mirrors the fields from cmd.Config needed for templates.
 type Config struct {
 	Network        string        `yaml:"network"`
@@ -77,8 +80,7 @@ func NewServiceManager() (ServiceManager, error) {
 type SystemdManager struct{}
 
 func (s *SystemdManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
-	templatedServices := []string{"zdb", "zstor", "zdbfs", "quantumd"}
-	for _, name := range templatedServices {
+	for _, name := range ManagedServices {
 		err := renderTemplate(
 			fmt.Sprintf("/etc/systemd/system/%s.service", name),
 			fmt.Sprintf("%s.service.template", name),
@@ -168,14 +170,13 @@ WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1, zdbDataSize)
 type ZinitManager struct{}
 
 func (z *ZinitManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
-	services := []string{"zstor", "zdb", "zdbfs", "quantumd"}
 	zinitDir := "/etc/zinit"
 
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
 		return fmt.Errorf("failed to create zinit directory: %w", err)
 	}
 
-	for _, name := range services {
+	for _, name := range ManagedServices {
 		err := renderTemplate(
 			filepath.Join(zinitDir, name+".yaml"),
 			name+".yaml.template",
