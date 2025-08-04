@@ -49,7 +49,7 @@ func runRestore() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := CreateDirectories(cfg, false); err != nil {
+	if _, err := CreateDirectories(cfg, false); err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 

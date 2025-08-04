@@ -3,6 +3,7 @@ package cmd
 import (
 	"embed"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -95,8 +96,19 @@ func SetupQSFS(isLocal bool) error {
 		return fmt.Errorf("failed to setup hook symlink: %w", err)
 	}
 
-	if err := CreateDirectories(cfg, isLocal); err != nil {
+	zdbDirExists, err := CreateDirectories(cfg, isLocal)
+	if err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
+	}
+
+	if zdbDirExists {
+		isEmpty, err := IsEmpty(cfg.ZdbRootPath)
+		if err != nil {
+			return fmt.Errorf("failed to check if zdb root path is empty: %w", err)
+		}
+		if !isEmpty {
+			fmt.Printf("WARNING: zdb root path %s is not empty, existing data may be used\n", cfg.ZdbRootPath)
+		}
 	}
 
 	if isLocal {
@@ -394,12 +406,17 @@ func DownloadBinaries() error {
 	return nil
 }
 
-func CreateDirectories(cfg *Config, localMode bool) error {
+func CreateDirectories(cfg *Config, localMode bool) (bool, error) {
 	dirs := []string{
 		cfg.QsfsMountpoint,
-		cfg.ZdbRootPath,
 		"/var/log",
 	}
+
+	_, err := os.Stat(cfg.ZdbRootPath)
+	zdbDirExists := !os.IsNotExist(err)
+
+	dirs = append(dirs, cfg.ZdbRootPath)
+
 	if localMode {
 		for i := 1; i <= 4; i++ {
 			dirs = append(dirs, fmt.Sprintf("/data/data%d", i), fmt.Sprintf("/data/index%d", i))
@@ -409,8 +426,23 @@ func CreateDirectories(cfg *Config, localMode bool) error {
 	for _, dir := range dirs {
 		fmt.Printf("Creating directory %s...\n", dir)
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+			return false, fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
-	return nil
+	return zdbDirExists, nil
 }
+
+func IsEmpty(name string) (bool, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
+}
+
