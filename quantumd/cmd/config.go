@@ -16,6 +16,7 @@ type Config struct {
 	DeploymentName    string        `yaml:"deployment_name"`
 	MetaNodes         []uint32      `yaml:"meta_nodes"`
 	DataNodes         []uint32      `yaml:"data_nodes"`
+	Farms             []uint64      `yaml:"farms"`
 	Password          string        `yaml:"password"`
 	MetaSizeGb        int           `yaml:"meta_size_gb"`
 	DataSizeGb        int           `yaml:"data_size_gb"`

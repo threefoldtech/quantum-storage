@@ -116,3 +116,26 @@ func GetDeploymentContracts(grid *deployer.TFPluginClient, twinID uint64, deploy
 	}
 	return contractsToCancel, nil
 }
+
+func GetNodesFromFarms(grid *deployer.TFPluginClient, farmIDs []uint64, hru, sru uint64) ([]uint32, error) {
+	rentedFalse := false
+	filter := types.NodeFilter{
+		FarmIDs: farmIDs,
+		FreeSRU: &sru,
+		FreeHRU: &hru,
+		Rented:  &rentedFalse,
+		Status:  []string{"up"},
+	}
+
+	nodes, _, err := grid.GridProxyClient.Nodes(context.Background(), filter, types.Limit{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodes from grid proxy")
+	}
+
+	var nodeIDs []uint32
+	for _, node := range nodes {
+		nodeIDs = append(nodeIDs, uint32(node.NodeID))
+	}
+
+	return nodeIDs, nil
+}
