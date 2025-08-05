@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -59,8 +60,8 @@ func parseNodeIDs(input string) ([]uint32, error) {
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy backend ZDBs on the ThreeFold Grid",
-	Long: `Deploys metadata and data ZDBs on specified nodes.
-Metadata ZDBs will be deployed with mode 'user' while data ZDBs will be 'seq'.`,
+	Long: `Deploys metadata and data ZDBs on specified or automatically selected nodes.
+The command will retry failed deployments on new nodes from the specified farms until the desired count is met.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := LoadConfig(ConfigFile)
 		if err != nil {
@@ -102,7 +103,6 @@ func init() {
 }
 
 func DeployBackends(cfg *Config) error {
-	// Create grid client
 	network := Network
 	if cfg.Network != "" {
 		network = cfg.Network
@@ -114,38 +114,36 @@ func DeployBackends(cfg *Config) error {
 
 	twinID := uint64(gridClient.TwinID)
 
-	// Load existing deployments to avoid redeploying
+	// Load existing deployments
 	existingDeployments, err := loadExistingDeployments(&gridClient, twinID, cfg.DeploymentName)
 	if err != nil {
 		return errors.Wrap(err, "failed to load existing deployments")
 	}
 	fmt.Printf("Found %d existing deployments.\n", len(existingDeployments))
 
-	// Resolve which nodes to use
-	metaNodes, dataNodes, err := resolveNodeIDs(cfg, &gridClient, existingDeployments)
-	if err != nil {
-		return errors.Wrap(err, "failed to resolve node IDs")
-	}
+	// Node pool for automatic selection
+	nodePool := newNodePool(cfg, &gridClient, existingDeployments)
 
-	// Deploy ZDBs with retry logic
-	metaDeployments, err := deployZDBs(
-		&gridClient, cfg, metaNodes, "meta", cfg.MetaSizeGb, workloads.ZDBModeUser, existingDeployments)
+	// Deploy metadata ZDBs
+	metaDeployments, err := deployZDBsWithRetry(
+		&gridClient, cfg, "meta", cfg.MetaSizeGb, workloads.ZDBModeUser, 4,
+		cfg.MetaNodes, existingDeployments, nodePool,
+	)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy metadata ZDBs")
 	}
 
-	dataDeployments, err := deployZDBs(
-		&gridClient, cfg, dataNodes, "data", cfg.DataSizeGb, workloads.ZDBModeSeq, existingDeployments)
+	// Deploy data ZDBs
+	dataDeployments, err := deployZDBsWithRetry(
+		&gridClient, cfg, "data", cfg.DataSizeGb, workloads.ZDBModeSeq, cfg.ExpectedShards,
+		cfg.DataNodes, existingDeployments, nodePool,
+	)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy data ZDBs")
 	}
 
-	// Generate config file with all deployed ZDBs
-	if err := generateRemoteConfig(cfg, metaDeployments, dataDeployments); err != nil {
-		return errors.Wrap(err, "failed to generate config")
-	}
-
-	return nil
+	// Generate config
+	return generateRemoteConfig(cfg, metaDeployments, dataDeployments)
 }
 
 // Helper to load existing deployments from the grid
@@ -182,142 +180,214 @@ func loadExistingDeployments(gridClient *deployer.TFPluginClient, twinID uint64,
 	return existing, nil
 }
 
-// resolveNodeIDs figures out the final list of nodes to deploy on
-func resolveNodeIDs(cfg *Config, gridClient *deployer.TFPluginClient, existing map[uint32]string) (meta, data []uint32, err error) {
-	const metaNodeCount = 4
-	dataNodeCount := cfg.ExpectedShards
-
-	// Start with manually specified nodes
-	meta = append(meta, cfg.MetaNodes...)
-	data = append(data, cfg.DataNodes...)
-
-	// If we don't have enough nodes, and farms are specified, find more
-	if len(meta) < metaNodeCount || len(data) < dataNodeCount {
-		if len(cfg.Farms) == 0 {
-			return nil, nil, fmt.Errorf("not enough nodes specified manually and no farms provided to find more")
-		}
-
-		// Fetch available nodes from farms
-		// Using data size for filtering as it's typically larger or equal to meta size
-		hru := uint64(cfg.DataSizeGb) * 1024 * 1024 * 1024
-		availableNodes, err := grid.GetNodesFromFarms(gridClient, cfg.Farms, hru, 0)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "failed to get nodes from farms")
-		}
-
-		// Create a pool of candidates, excluding already used nodes
-		usedNodes := make(map[uint32]bool)
-		for nodeID := range existing {
-			usedNodes[nodeID] = true
-		}
-		for _, nodeID := range meta {
-			usedNodes[nodeID] = true
-		}
-		for _, nodeID := range data {
-			usedNodes[nodeID] = true
-		}
-
-		candidatePool := []uint32{}
-		for _, nodeID := range availableNodes {
-			if !usedNodes[nodeID] {
-				candidatePool = append(candidatePool, nodeID)
-			}
-		}
-		rand.Shuffle(len(candidatePool), func(i, j int) {
-			candidatePool[i], candidatePool[j] = candidatePool[j], candidatePool[i]
-		})
-
-		// Fill missing meta nodes
-		for len(meta) < metaNodeCount && len(candidatePool) > 0 {
-			meta = append(meta, candidatePool[0])
-			candidatePool = candidatePool[1:]
-		}
-
-		// Fill missing data nodes
-		for len(data) < dataNodeCount && len(candidatePool) > 0 {
-			data = append(data, candidatePool[0])
-			candidatePool = candidatePool[1:]
-		}
+// newNodePool creates a helper for managing available nodes for deployment.
+func newNodePool(cfg *Config, gridClient *deployer.TFPluginClient, existing map[uint32]string) *nodePool {
+	return &nodePool{
+		cfg:        cfg,
+		gridClient: gridClient,
+		used:       existing,
+		mu:         sync.Mutex{},
 	}
-
-	if len(meta) < metaNodeCount {
-		return nil, nil, fmt.Errorf("could not find enough nodes for metadata, needed %d, found %d", metaNodeCount, len(meta))
-	}
-	if len(data) < dataNodeCount {
-		return nil, nil, fmt.Errorf("could not find enough nodes for data, needed %d, found %d", dataNodeCount, len(data))
-	}
-
-	return meta, data, nil
 }
 
-// deployZDBs handles the deployment and retry logic for a set of ZDBs
-func deployZDBs(
+type nodePool struct {
+	cfg        *Config
+	gridClient *deployer.TFPluginClient
+	used       map[uint32]string // nodeID -> type
+	mu         sync.Mutex
+}
+
+func (p *nodePool) Get(count int) ([]uint32, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(p.cfg.Farms) == 0 {
+		return nil, errors.New("no farms configured for automatic node selection")
+	}
+
+	// Collect all nodes that have been used in any capacity
+	excludedNodes := make(map[uint32]bool)
+	for nodeID := range p.used {
+		excludedNodes[nodeID] = true
+	}
+
+	// Fetch available nodes from farms
+	hru := uint64(p.cfg.DataSizeGb) * 1024 * 1024 * 1024 // Use data size for filtering
+	availableNodes, err := grid.GetNodesFromFarms(p.gridClient, p.cfg.Farms, hru, 0)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get nodes from farms")
+	}
+
+	// Filter out excluded nodes
+	candidates := []uint32{}
+	for _, nodeID := range availableNodes {
+		if !excludedNodes[nodeID] {
+			candidates = append(candidates, nodeID)
+		}
+	}
+
+	if len(candidates) < count {
+		return nil, fmt.Errorf("not enough available nodes in farms, needed %d, found %d", count, len(candidates))
+	}
+
+	rand.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
+
+	return candidates[:count], nil
+}
+
+func (p *nodePool) MarkUsed(nodeID uint32, nodeType string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.used[nodeID] = nodeType
+}
+
+// deployZDBsWithRetry handles the entire lifecycle of deploying a group of ZDBs,
+// including retries on failure.
+func deployZDBsWithRetry(
 	gridClient *deployer.TFPluginClient,
 	cfg *Config,
-	nodes []uint32,
 	nodeType string,
 	sizeGB int,
 	mode string,
+	requiredCount int,
+	manualNodes []uint32,
 	existing map[uint32]string,
+	pool *nodePool,
 ) ([]*workloads.ZDB, error) {
 
-	twinID := uint64(gridClient.TwinID)
-	deployments := []*workloads.ZDB{}
-	nodesToTry := make([]uint32, len(nodes))
-	copy(nodesToTry, nodes)
 
-	for _, nodeID := range nodesToTry {
-		// Check if this node already has a deployment of the correct type
+deployments := []*workloads.ZDB{}
+	nodesToDeploy := []uint32{}
+
+	// First, check existing and manual nodes
+	for _, nodeID := range manualNodes {
 		if t, ok := existing[nodeID]; ok && t == nodeType {
-			fmt.Printf("Skipping %s deployment on node %d, already exists.\n", nodeType, nodeID)
-			name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
-			resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to load existing ZDB '%s' from node %d", name, nodeID)
+			fmt.Printf("Found existing %s deployment on manually specified node %d.\n", nodeType, nodeID)
+			if zdb, err := loadZDB(gridClient, cfg, nodeID, nodeType); err == nil {
+				deployments = append(deployments, zdb)
+				pool.MarkUsed(nodeID, nodeType)
+			} else {
+				fmt.Printf("warn: could not load existing zdb from node %d: %v\n", nodeID, err)
 			}
-		
-deployments = append(deployments, &resZDB)
-			continue
+		} else {
+			nodesToDeploy = append(nodesToDeploy, nodeID)
 		}
-
-		fmt.Printf("Deploying %s ZDB on node %d...\n", nodeType, nodeID)
-		name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeID)
-		zdb := workloads.ZDB{
-			Name:        name,
-			Password:    cfg.Password,
-			Public:      false,
-			SizeGB:      uint64(sizeGB),
-			Description: fmt.Sprintf("QSFS %s namespace", nodeType),
-			Mode:        mode,
-		}
-		dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-
-		if err := gridClient.DeploymentDeployer.Deploy(ctx, &dl); err != nil {
-			fmt.Printf("warn: failed to deploy %s ZDB on node %d: %v. Will try to find a replacement.\n", nodeType, nodeID, err)
-			// In a real implementation, here you would trigger the replacement logic.
-			// For now, we will just error out if we can't deploy the initial set.
-			// This simplification is due to the complexity of managing replacement pools.
-			return nil, errors.Wrapf(err, "failed to deploy on node %d", nodeID)
-		}
-
-		resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to load deployed ZDB '%s' from node %d", name, nodeID)
-		}
-		deployments = append(deployments, &resZDB)
-		fmt.Printf("Successfully deployed %s ZDB '%s' on node %d\n", nodeType, name, nodeID)
 	}
 
-	if len(deployments) != len(nodes) {
-		return nil, fmt.Errorf("failed to deploy all required %s ZDBs. wanted %d, got %d", nodeType, len(nodes), len(deployments))
+	// Loop until we have enough deployments
+	for len(deployments) < requiredCount {
+		needed := requiredCount - len(deployments)
+
+		// Get candidate nodes
+		var candidates []uint32
+		if len(nodesToDeploy) > 0 {
+			candidates = nodesToDeploy
+			nodesToDeploy = nil // Use them up
+		} else {
+			fmt.Printf("Needing %d more %s nodes, searching farms...\n", needed, nodeType)
+			newCandidates, err := pool.Get(needed)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to get candidate nodes for %s deployment", nodeType)
+			}
+			candidates = newCandidates
+		}
+
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("could not find any new candidate nodes for %s deployment", nodeType)
+		}
+
+		// Deploy in parallel
+		type result struct {
+			zdb    *workloads.ZDB
+			nodeID uint32
+			err    error
+		}
+		results := make(chan result, len(candidates))
+		var wg sync.WaitGroup
+
+		for _, nodeID := range candidates {
+			wg.Add(1)
+			go func(nodeID uint32) {
+				defer wg.Done()
+				pool.MarkUsed(nodeID, nodeType) // Mark as used immediately to avoid re-selection
+				zdb, err := deployZDB(gridClient, cfg, nodeID, nodeType, sizeGB, mode)
+				results <- result{zdb, nodeID, err}
+			}(nodeID)
+		}
+
+		wg.Wait()
+		close(results)
+
+		for res := range results {
+			if res.err != nil {
+				fmt.Printf("warn: deployment failed: %v. Will try to find a replacement.\n", res.err)
+			} else {
+				deployments = append(deployments, res.zdb)
+				fmt.Printf("Successfully deployed %s ZDB on node %d\n", nodeType, res.nodeID)
+			}
+		}
+
+		if len(deployments) < requiredCount {
+			fmt.Printf("Deployed %d/%d %s ZDBs, retrying...\n", len(deployments), requiredCount, nodeType)
+			time.Sleep(2 * time.Second) // Brief pause before retry
+		}
 	}
 
+	fmt.Printf("Successfully deployed all %d %s ZDBs.\n", requiredCount, nodeType)
 	return deployments, nil
 }
 
+// deployZDB performs a single ZDB deployment.
+func deployZDB(
+	gridClient *deployer.TFPluginClient,
+	cfg *Config,
+	nodeID uint32,
+	nodeType string,
+	sizeGB int,
+	mode string,
+) (*workloads.ZDB, error) {
+
+	twinID := uint64(gridClient.TwinID)
+	name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
+
+	fmt.Printf("Deploying %s ZDB '%s' on node %d...\n", nodeType, name, nodeID)
+
+	zdb := workloads.ZDB{
+		Name:        name,
+		Password:    cfg.Password,
+		Public:      false,
+		SizeGB:      uint64(sizeGB),
+		Description: fmt.Sprintf("QSFS %s namespace", nodeType),
+		Mode:        mode,
+	}
+	dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if err := gridClient.DeploymentDeployer.Deploy(ctx, &dl); err != nil {
+		return nil, errors.Wrapf(err, "failed to deploy %s ZDB on node %d", nodeType, nodeID)
+	}
+
+	resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load deployed ZDB '%s' from node %d", name, nodeID)
+	}
+	return &resZDB, nil
+}
+
+// loadZDB is a helper to load a ZDB from the grid.
+func loadZDB(gridClient *deployer.TFPluginClient, cfg *Config, nodeID uint32, nodeType string) (*workloads.ZDB, error) {
+	twinID := uint64(gridClient.TwinID)
+	name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
+	resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
+	if err != nil {
+		return nil, err
+	}
+	return &resZDB, nil
+}
 
 func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
 	key, err := keyFromMnemonic(cfg.Mnemonic, cfg.Password)
