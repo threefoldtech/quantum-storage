@@ -112,6 +112,8 @@ func DeployBackends(cfg *Config) error {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
+	deploymentDeployer := deployer.NewDeploymentDeployer(&gridClient)
+
 	twinID := uint64(gridClient.TwinID)
 
 	// Load existing deployments
@@ -125,8 +127,8 @@ func DeployBackends(cfg *Config) error {
 	nodePool := newNodePool(cfg, &gridClient, existingDeployments)
 
 	// Deploy metadata ZDBs
-	metaDeployments, err := deployZDBsWithRetry(
-		&gridClient, cfg, "meta", cfg.MetaSizeGb, workloads.ZDBModeUser, 4,
+	metaDeployments, err := deployInBatches(
+		&deploymentDeployer, &gridClient, cfg, "meta", cfg.MetaSizeGb, workloads.ZDBModeUser, 4,
 		cfg.MetaNodes, existingDeployments, nodePool,
 	)
 	if err != nil {
@@ -134,8 +136,8 @@ func DeployBackends(cfg *Config) error {
 	}
 
 	// Deploy data ZDBs
-	dataDeployments, err := deployZDBsWithRetry(
-		&gridClient, cfg, "data", cfg.DataSizeGb, workloads.ZDBModeSeq, cfg.ExpectedShards,
+	dataDeployments, err := deployInBatches(
+		&deploymentDeployer, &gridClient, cfg, "data", cfg.DataSizeGb, workloads.ZDBModeSeq, cfg.ExpectedShards,
 		cfg.DataNodes, existingDeployments, nodePool,
 	)
 	if err != nil {
@@ -243,9 +245,10 @@ func (p *nodePool) MarkUsed(nodeID uint32, nodeType string) {
 	p.used[nodeID] = nodeType
 }
 
-// deployZDBsWithRetry handles the entire lifecycle of deploying a group of ZDBs,
+// deployInBatches handles the entire lifecycle of deploying a group of ZDBs,
 // including retries on failure.
-func deployZDBsWithRetry(
+func deployInBatches(
+	deploymentDeployer *deployer.DeploymentDeployer,
 	gridClient *deployer.TFPluginClient,
 	cfg *Config,
 	nodeType string,
@@ -257,8 +260,8 @@ func deployZDBsWithRetry(
 	pool *nodePool,
 ) ([]*workloads.ZDB, error) {
 
-
-deployments := []*workloads.ZDB{}
+	twinID := uint64(gridClient.TwinID)
+	successfulDeployments := []*workloads.ZDB{}
 	nodesToDeploy := []uint32{}
 
 	// First, check existing and manual nodes
@@ -266,7 +269,7 @@ deployments := []*workloads.ZDB{}
 		if t, ok := existing[nodeID]; ok && t == nodeType {
 			fmt.Printf("Found existing %s deployment on manually specified node %d.\n", nodeType, nodeID)
 			if zdb, err := loadZDB(gridClient, cfg, nodeID, nodeType); err == nil {
-				deployments = append(deployments, zdb)
+				successfulDeployments = append(successfulDeployments, zdb)
 				pool.MarkUsed(nodeID, nodeType)
 			} else {
 				fmt.Printf("warn: could not load existing zdb from node %d: %v\n", nodeID, err)
@@ -277,15 +280,21 @@ deployments := []*workloads.ZDB{}
 	}
 
 	// Loop until we have enough deployments
-	for len(deployments) < requiredCount {
-		needed := requiredCount - len(deployments)
+	for len(successfulDeployments) < requiredCount {
+		needed := requiredCount - len(successfulDeployments)
 
-		// Get candidate nodes
+		// Get candidate nodes for the batch
 		var candidates []uint32
 		if len(nodesToDeploy) > 0 {
-			candidates = nodesToDeploy
-			nodesToDeploy = nil // Use them up
+			// Prioritize manually specified nodes
+			if needed > len(nodesToDeploy) {
+				candidates = nodesToDeploy
+			} else {
+				candidates = nodesToDeploy[:needed]
+			}
+			nodesToDeploy = nodesToDeploy[len(candidates):]
 		} else {
+			// If no manual nodes left, get new ones from the pool
 			fmt.Printf("Needing %d more %s nodes, searching farms...\n", needed, nodeType)
 			newCandidates, err := pool.Get(needed)
 			if err != nil {
@@ -298,85 +307,63 @@ deployments := []*workloads.ZDB{}
 			return nil, fmt.Errorf("could not find any new candidate nodes for %s deployment", nodeType)
 		}
 
-		// Deploy in parallel
-		type result struct {
-			zdb    *workloads.ZDB
-			nodeID uint32
-			err    error
-		}
-		results := make(chan result, len(candidates))
-		var wg sync.WaitGroup
-
+		// Prepare batch deployment
+		deploymentConfigs := []*workloads.Deployment{}
+		nodeIDsForBatch := []uint32{}
 		for _, nodeID := range candidates {
-			wg.Add(1)
-			go func(nodeID uint32) {
-				defer wg.Done()
-				pool.MarkUsed(nodeID, nodeType) // Mark as used immediately to avoid re-selection
-				zdb, err := deployZDB(gridClient, cfg, nodeID, nodeType, sizeGB, mode)
-				results <- result{zdb, nodeID, err}
-			}(nodeID)
-		}
-
-		wg.Wait()
-		close(results)
-
-		for res := range results {
-			if res.err != nil {
-				fmt.Printf("warn: deployment failed: %v. Will try to find a replacement.\n", res.err)
-			} else {
-				deployments = append(deployments, res.zdb)
-				fmt.Printf("Successfully deployed %s ZDB on node %d\n", nodeType, res.nodeID)
+			pool.MarkUsed(nodeID, nodeType) // Mark as used immediately
+			nodeIDsForBatch = append(nodeIDsForBatch, nodeID)
+			name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
+			zdb := workloads.ZDB{
+				Name:        name,
+				Password:    cfg.Password,
+				Public:      false,
+				SizeGB:      uint64(sizeGB),
+				Description: fmt.Sprintf("QSFS %s namespace", nodeType),
+				Mode:        mode,
 			}
+			dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
+			deploymentConfigs = append(deploymentConfigs, &dl)
 		}
 
-		if len(deployments) < requiredCount {
-			fmt.Printf("Deployed %d/%d %s ZDBs, retrying...\n", len(deployments), requiredCount, nodeType)
-			time.Sleep(2 * time.Second) // Brief pause before retry
+		// Deploy the batch
+		fmt.Printf("Attempting to deploy a batch of %d %s ZDBs on nodes %v...\n", len(deploymentConfigs), nodeType, nodeIDsForBatch)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		err := deploymentDeployer.BatchDeploy(ctx, deploymentConfigs)
+
+		// Process batch results
+		if err != nil {
+			fmt.Printf("warn: batch deployment failed: %v. Analyzing individual deployments...\n", err)
+		}
+
+		// Check which deployments succeeded and load them
+		for _, dl := range deploymentConfigs {
+			// After BatchDeploy, contract ID should be updated in the deployment object.
+			if dl.ContractID == 0 {
+				fmt.Printf("warn: deployment on node %d failed to get a contract ID.\n", dl.NodeID)
+				continue
+			}
+			resZDB, loadErr := gridClient.State.LoadZdbFromGrid(context.TODO(), dl.NodeID, dl.Name, dl.Zdbs[0].Name)
+			if loadErr != nil {
+				fmt.Printf("warn: deployment on node %d failed to load after batch: %v\n", dl.NodeID, loadErr)
+				continue
+			}
+			successfulDeployments = append(successfulDeployments, &resZDB)
+			fmt.Printf("Successfully deployed and loaded %s ZDB on node %d\n", nodeType, dl.NodeID)
+		}
+
+		if len(successfulDeployments) < requiredCount {
+			fmt.Printf("Deployed %d/%d %s ZDBs, retrying for the remaining ones...\n", len(successfulDeployments), requiredCount, nodeType)
+			time.Sleep(2 * time.Second) // Brief pause before next batch
 		}
 	}
 
 	fmt.Printf("Successfully deployed all %d %s ZDBs.\n", requiredCount, nodeType)
-	return deployments, nil
+	return successfulDeployments, nil
 }
 
-// deployZDB performs a single ZDB deployment.
-func deployZDB(
-	gridClient *deployer.TFPluginClient,
-	cfg *Config,
-	nodeID uint32,
-	nodeType string,
-	sizeGB int,
-	mode string,
-) (*workloads.ZDB, error) {
 
-	twinID := uint64(gridClient.TwinID)
-	name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
-
-	fmt.Printf("Deploying %s ZDB '%s' on node %d...\n", nodeType, name, nodeID)
-
-	zdb := workloads.ZDB{
-		Name:        name,
-		Password:    cfg.Password,
-		Public:      false,
-		SizeGB:      uint64(sizeGB),
-		Description: fmt.Sprintf("QSFS %s namespace", nodeType),
-		Mode:        mode,
-	}
-	dl := workloads.NewDeployment(name, nodeID, "", nil, "", nil, []workloads.ZDB{zdb}, nil, nil, nil, nil)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	if err := gridClient.DeploymentDeployer.Deploy(ctx, &dl); err != nil {
-		return nil, errors.Wrapf(err, "failed to deploy %s ZDB on node %d", nodeType, nodeID)
-	}
-
-	resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to load deployed ZDB '%s' from node %d", name, nodeID)
-	}
-	return &resZDB, nil
-}
 
 // loadZDB is a helper to load a ZDB from the grid.
 func loadZDB(gridClient *deployer.TFPluginClient, cfg *Config, nodeID uint32, nodeType string) (*workloads.ZDB, error) {
