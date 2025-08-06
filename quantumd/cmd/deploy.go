@@ -212,6 +212,9 @@ func (p *nodePool) Get(count int) ([]uint32, error) {
 	for nodeID := range p.used {
 		excludedNodes[nodeID] = true
 	}
+	for _, nodeID := range p.cfg.ExcludeNodes {
+		excludedNodes[nodeID] = true
+	}
 
 	// Fetch available nodes from farms
 	hru := uint64(p.cfg.DataSizeGb) * 1024 * 1024 * 1024 // Use data size for filtering

@@ -17,6 +17,7 @@ type Config struct {
 	MetaNodes         []uint32      `yaml:"meta_nodes"`
 	DataNodes         []uint32      `yaml:"data_nodes"`
 	Farms             []uint64      `yaml:"farms"`
+	ExcludeNodes      []uint32      `yaml:"exclude_nodes"`
 	Password          string        `yaml:"password"`
 	MetaSizeGb        int           `yaml:"meta_size_gb"`
 	DataSizeGb        int           `yaml:"data_size_gb"`
