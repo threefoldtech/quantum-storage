@@ -59,14 +59,16 @@ func DestroyBackends(cfg *Config) error {
 
 	fmt.Printf("Found %d deployments to destroy.\n", len(contractsToCancel))
 
+	contractIDs := make([]uint64, 0, len(contractsToCancel))
 	for _, contract := range contractsToCancel {
-		fmt.Printf("Destroying deployment with contract ID %d\n", contract.ContractID)
-		if err := gridClient.SubstrateConn.CancelContract(gridClient.Identity, uint64(contract.ContractID)); err != nil {
-			fmt.Printf("warn: failed to destroy deployment with contract ID %d: %v\n", contract.ContractID, err)
-		} else {
-			fmt.Printf("Destroyed deployment with contract ID %d\n", contract.ContractID)
-		}
+		contractIDs = append(contractIDs, uint64(contract.ContractID))
 	}
 
+	fmt.Printf("Destroying deployments with contract IDs %v\n", contractIDs)
+	if err := gridClient.SubstrateConn.BatchCancelContract(gridClient.Identity, contractIDs); err != nil {
+		return errors.Wrap(err, "failed to destroy deployments")
+	}
+
+	fmt.Println("All deployments destroyed successfully.")
 	return nil
 }
