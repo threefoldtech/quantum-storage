@@ -283,7 +283,11 @@ func deployInBatches(
 	}
 
 	// Loop until we have enough deployments
+	retries := 0
 	for len(successfulDeployments) < requiredCount {
+		if retries >= cfg.MaxDeploymentRetries {
+			return nil, fmt.Errorf("failed to deploy required number of %s ZDBs after %d retries", nodeType, cfg.MaxDeploymentRetries)
+		}
 		needed := requiredCount - len(successfulDeployments)
 
 		// Get candidate nodes for the batch
@@ -357,7 +361,8 @@ func deployInBatches(
 		}
 
 		if len(successfulDeployments) < requiredCount {
-			fmt.Printf("Deployed %d/%d %s ZDBs, retrying for the remaining ones...\n", len(successfulDeployments), requiredCount, nodeType)
+			retries++
+			fmt.Printf("Deployed %d/%d %s ZDBs, retrying for the remaining ones (attempt %d/%d).\n", len(successfulDeployments), requiredCount, nodeType, retries, cfg.MaxDeploymentRetries)
 			time.Sleep(2 * time.Second) // Brief pause before next batch
 		}
 	}

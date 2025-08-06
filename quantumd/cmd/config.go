@@ -30,8 +30,9 @@ type Config struct {
 	DatabasePath      string        `yaml:"database_path"`
 	ZdbRotateTime     time.Duration `yaml:"zdb_rotate_time"`
 	ZdbConnectionType string        `yaml:"zdb_connection_type"`
-	ZdbDataSize       string        `yaml:"zdb_data_size"`
-	PrometheusPort    int           `yaml:"prometheus_port"`
+	ZdbDataSize          string        `yaml:"zdb_data_size"`
+	PrometheusPort       int           `yaml:"prometheus_port"`
+	MaxDeploymentRetries int           `yaml:"max_deployment_retries"`
 
 	// For templates
 	MetaBackends []Backend `yaml:"-"`
@@ -71,6 +72,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.PrometheusPort == 0 {
 		cfg.PrometheusPort = 9092
+	}
+	if cfg.MaxDeploymentRetries == 0 {
+		cfg.MaxDeploymentRetries = 5
 	}
 
 	// Validate ZdbDataSize
