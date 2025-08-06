@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
+	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/deployer"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
 	bip39 "github.com/tyler-smith/go-bip39"
 )
 
@@ -362,8 +362,6 @@ func deployInBatches(
 	fmt.Printf("Successfully deployed all %d %s ZDBs.\n", requiredCount, nodeType)
 	return successfulDeployments, nil
 }
-
-
 
 // loadZDB is a helper to load a ZDB from the grid.
 func loadZDB(gridClient *deployer.TFPluginClient, cfg *Config, nodeID uint32, nodeType string) (*workloads.ZDB, error) {

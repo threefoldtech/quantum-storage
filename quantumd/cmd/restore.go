@@ -13,11 +13,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
-	"github.com/threefoldtech/tfgrid-sdk-go/grid-client/workloads"
 )
 
 var restoreCmd = &cobra.Command{
