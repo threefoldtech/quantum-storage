@@ -11,7 +11,6 @@ require (
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/scottyeager/tfgrid-sdk-go/grid-client v0.16.9
 	github.com/spf13/cobra v1.8.0
-	github.com/scottyeager/tfgrid-sdk-go/grid-client v0.16.9
 	github.com/threefoldtech/tfgrid-sdk-go/grid-proxy v0.16.8
 	github.com/tyler-smith/go-bip39 v1.1.0
 	golang.org/x/crypto v0.40.0
