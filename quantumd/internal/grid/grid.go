@@ -97,24 +97,24 @@ func GetContracts(grid *deployer.TFPluginClient, twinID uint64) ([]DeploymentInf
 	return deploymentContracts, nil
 }
 
-func GetDeploymentContracts(grid *deployer.TFPluginClient, twinID uint64, deploymentName string) ([]types.Contract, error) {
+func GetDeploymentContracts(grid *deployer.TFPluginClient, twinID uint64, deploymentName string) ([]DeploymentInfo, error) {
 	contracts, err := GetContracts(grid, twinID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to query contracts for twin %d", twinID)
 	}
 
-	var contractsToCancel []types.Contract
+	var deploymentContracts []DeploymentInfo
 	for _, contractInfo := range contracts {
 		name := contractInfo.DeploymentName
 		expectedPrefix := fmt.Sprintf("%s_%d", deploymentName, twinID)
 		if strings.HasPrefix(name, expectedPrefix) {
 			parts := strings.Split(name, "_")
 			if len(parts) == 4 && (parts[2] == "meta" || parts[2] == "data") {
-				contractsToCancel = append(contractsToCancel, contractInfo.Contract)
+				deploymentContracts = append(deploymentContracts, contractInfo)
 			}
 		}
 	}
-	return contractsToCancel, nil
+	return deploymentContracts, nil
 }
 
 func GetNodesFromFarms(grid *deployer.TFPluginClient, farmIDs []uint64, hru, sru uint64) ([]uint32, error) {

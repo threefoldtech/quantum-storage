@@ -26,7 +26,7 @@ It essentially runs 'deploy' followed by 'setup'.`,
 
 		if destroy {
 			fmt.Println("Destroying existing deployments...")
-			if err := DestroyBackends(cfg); err != nil {
+			if err := DestroyAllBackends(cfg); err != nil {
 				fmt.Printf("Error destroying deployments: %v\n", err)
 				os.Exit(1)
 			}
