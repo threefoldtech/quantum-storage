@@ -103,6 +103,13 @@ func init() {
 }
 
 func DeployBackends(cfg *Config) error {
+	if cfg.MetaSizeGb <= 0 {
+		return fmt.Errorf("meta_size must be greater than 0")
+	}
+	if cfg.DataSizeGb <= 0 {
+		return fmt.Errorf("data_size or total_storage_size must be set to a value greater than 0")
+	}
+
 	network := Network
 	if cfg.Network != "" {
 		network = cfg.Network
