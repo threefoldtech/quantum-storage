@@ -9,9 +9,22 @@ password: "" # Used along with mnemonic to encrypt data and protect zdbs
 # Backend configuration
 meta_nodes: [11, 13, 24, 2011] # List of node IDs for metadata ZDBs
 data_nodes: [11, 13, 24, 2011] # List of node IDs for data ZDBs
+# farms: [1, 2, 3] # Optional: List of farm IDs to automatically select nodes from
 # exclude_nodes: [1001, 1002] # Optional: node IDs to exclude when selecting from farms
-meta_size_gb: 1 # Size in GB for metadata ZDBs
-data_size_gb: 10 # Size in GB for data ZDBs
+
+# --- Storage Size Configuration ---
+# Option 1: Specify total desired usable storage.
+# The size of individual data backends will be calculated automatically based on
+# the number of shards. This is the recommended approach.
+total_storage_size: "20GB"
+
+# Option 2: Manually specify the size of each data backend.
+# Use this if you need precise control over backend sizes. If this is set,
+# total_storage_size is ignored.
+# data_size: "5GB"
+
+# Metadata backend size. This is typically much smaller than data backends.
+meta_size: "1GB"
 
 # Zstor configuration
 min_shards: 2
