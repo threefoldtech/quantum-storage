@@ -284,8 +284,8 @@ func deployInBatches(
 	fmt.Printf("Checking for any existing '%s' deployments...\n", nodeType)
 	for nodeID, t := range existing {
 		if t == nodeType {
-			fmt.Printf("Found existing %s deployment on node %d.\n", nodeType, nodeID)
 			if zdb, err := loadZDB(gridClient, cfg, nodeID, nodeType); err == nil {
+				fmt.Printf("Found existing %s deployment of size %dGB on node %d.\n", nodeType, zdb.SizeGB, nodeID)
 				successfulDeployments = append(successfulDeployments, zdb)
 				pool.MarkUsed(nodeID, nodeType) // Mark node as used in the pool
 			} else {
@@ -371,7 +371,7 @@ func deployInBatches(
 		}
 
 		// Deploy the batch
-		fmt.Printf("Attempting to deploy a batch of %d %s ZDBs on nodes %v...\n", len(deploymentConfigs), nodeType, nodeIDsForBatch)
+		fmt.Printf("Attempting to deploy a batch of %d %s ZDBs of size %dGB on nodes %v...\n", len(deploymentConfigs), nodeType, sizeGB, nodeIDsForBatch)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		err := deploymentDeployer.BatchDeploy(ctx, deploymentConfigs)
@@ -394,7 +394,7 @@ func deployInBatches(
 				continue
 			}
 			successfulDeployments = append(successfulDeployments, &resZDB)
-			fmt.Printf("Successfully deployed and loaded %s ZDB on node %d\n", nodeType, dl.NodeID)
+			fmt.Printf("Successfully deployed and loaded %s ZDB of size %dGB on node %d\n", nodeType, sizeGB, dl.NodeID)
 		}
 
 		if len(successfulDeployments) < requiredCount {

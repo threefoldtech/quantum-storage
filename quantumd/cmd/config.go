@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/math"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,8 +20,9 @@ type Config struct {
 	Farms             []uint64      `yaml:"farms"`
 	ExcludeNodes      []uint32      `yaml:"exclude_nodes"`
 	Password          string        `yaml:"password"`
-	MetaSizeGb        int           `yaml:"meta_size_gb"`
-	DataSizeGb        int           `yaml:"data_size_gb"`
+	MetaSize          string        `yaml:"meta_size"`
+	DataSize          string        `yaml:"data_size"`
+	TotalStorageSize  string        `yaml:"total_storage_size"`
 	MinShards         int           `yaml:"min_shards"`
 	ExpectedShards    int           `yaml:"expected_shards"`
 	ZdbRootPath       string        `yaml:"zdb_root_path"`
@@ -30,11 +32,13 @@ type Config struct {
 	DatabasePath      string        `yaml:"database_path"`
 	ZdbRotateTime     time.Duration `yaml:"zdb_rotate_time"`
 	ZdbConnectionType string        `yaml:"zdb_connection_type"`
-	ZdbDataSize          string        `yaml:"zdb_data_size"`
-	PrometheusPort       int           `yaml:"prometheus_port"`
-	MaxDeploymentRetries int           `yaml:"max_deployment_retries"`
+	ZdbDataSize       string        `yaml:"zdb_data_size"`
+	PrometheusPort    int           `yaml:"prometheus_port"`
+	MaxDeploymentRetries int        `yaml:"max_deployment_retries"`
 
-	// For templates
+	// For templates and internal use
+	MetaSizeGb   int       `yaml:"-"`
+	DataSizeGb   int       `yaml:"-"`
 	MetaBackends []Backend `yaml:"-"`
 	DataBackends []Backend `yaml:"-"`
 }
@@ -84,6 +88,43 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("zdb_data_size cannot be smaller than 524288 bytes (0.5 MB)")
 	}
 
+	// Parse MetaSize to GB
+	if cfg.MetaSize != "" {
+		metaSizeGb, err := parseSizeToGB(cfg.MetaSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse meta_size: %w", err)
+		}
+		cfg.MetaSizeGb = metaSizeGb
+	}
+
+	// Calculate or parse DataSize to GB
+	if cfg.DataSize != "" {
+		dataSizeGb, err := parseSizeToGB(cfg.DataSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse data_size: %w", err)
+		}
+		cfg.DataSizeGb = dataSizeGb
+	} else if cfg.TotalStorageSize != "" {
+		totalBytes, err := parseSize(cfg.TotalStorageSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse total_storage_size: %w", err)
+		}
+
+		if cfg.ExpectedShards == 0 || cfg.MinShards == 0 {
+			return nil, fmt.Errorf("expected_shards and min_shards must be set to calculate data backend size")
+		}
+
+		backendSizeBytes, err := math.ComputeBackendSize(int64(totalBytes), int64(cfg.ExpectedShards), int64(cfg.MinShards))
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute backend size: %w", err)
+		}
+
+		// Convert bytes to GB, rounding up
+		backendSizeGB := (backendSizeBytes + (1024*1024*1024 - 1)) / (1024 * 1024 * 1024)
+		cfg.DataSizeGb = int(backendSizeGB)
+		fmt.Printf("Calculated data backend size: %d GB per backend\n", cfg.DataSizeGb)
+	}
+
 	return &cfg, nil
 }
 
@@ -96,22 +137,37 @@ func parseSize(sizeStr string) (uint64, error) {
 	var multiplier uint64
 	var unit string
 
-	if strings.HasSuffix(sizeStr, "G") {
+	if strings.HasSuffix(sizeStr, "T") || strings.HasSuffix(sizeStr, "TB") {
+		multiplier = 1024 * 1024 * 1024 * 1024
+		unit = "TB"
+		if strings.HasSuffix(sizeStr, "T") {
+			unit = "T"
+		}
+	} else if strings.HasSuffix(sizeStr, "G") || strings.HasSuffix(sizeStr, "GB") {
 		multiplier = 1024 * 1024 * 1024
-		unit = "G"
-	} else if strings.HasSuffix(sizeStr, "M") {
+		unit = "GB"
+		if strings.HasSuffix(sizeStr, "G") {
+			unit = "G"
+		}
+	} else if strings.HasSuffix(sizeStr, "M") || strings.HasSuffix(sizeStr, "MB") {
 		multiplier = 1024 * 1024
-		unit = "M"
-	} else if strings.HasSuffix(sizeStr, "K") {
+		unit = "MB"
+		if strings.HasSuffix(sizeStr, "M") {
+			unit = "M"
+		}
+	} else if strings.HasSuffix(sizeStr, "K") || strings.HasSuffix(sizeStr, "KB") {
 		multiplier = 1024
-		unit = "K"
+		unit = "KB"
+		if strings.HasSuffix(sizeStr, "K") {
+			unit = "K"
+		}
 	} else {
 		// Check if it's just a number (bytes)
 		if _, err := strconv.ParseUint(sizeStr, 10, 64); err == nil {
 			multiplier = 1
 			unit = ""
 		} else {
-			return 0, fmt.Errorf("invalid size format: %s. Must be in G, M, K or bytes (e.g. 10G, 500M, 1024K, 524288)", sizeStr)
+			return 0, fmt.Errorf("invalid size format: %s. Must be in T, G, M, K or bytes (e.g. 1T, 10G, 500M, 1024K, 524288)", sizeStr)
 		}
 	}
 
@@ -125,4 +181,17 @@ func parseSize(sizeStr string) (uint64, error) {
 	}
 
 	return size * multiplier, nil
+}
+
+func parseSizeToGB(sizeStr string) (int, error) {
+	bytes, err := parseSize(sizeStr)
+	if err != nil {
+		return 0, err
+	}
+	if bytes == 0 {
+		return 0, nil
+	}
+	// Convert bytes to GB, rounding up
+	gb := (bytes + (1024*1024*1024 - 1)) / (1024 * 1024 * 1024)
+	return int(gb), nil
 }
