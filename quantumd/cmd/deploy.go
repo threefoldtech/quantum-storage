@@ -129,16 +129,28 @@ func DeployBackends(cfg *Config) error {
 	// Deploy metadata ZDBs
 	metaDeployments, err := deployInBatches(
 		&deploymentDeployer, &gridClient, cfg, "meta", cfg.MetaSizeGb, workloads.ZDBModeUser, 4,
-		cfg.MetaNodes, existingDeployments, nodePool,
+		cfg.MetaNodes, nil, existingDeployments, nodePool,
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy metadata ZDBs")
 	}
 
-	// Deploy data ZDBs
+	// After successful metadata deployment, get the node IDs to use as preferred nodes for data deployment.
+	metaNodeIDs := []uint32{}
+	for _, zdb := range metaDeployments {
+		parts := strings.Split(zdb.Name, "_")
+		if len(parts) > 0 {
+			nodeID, err := strconv.ParseUint(parts[len(parts)-1], 10, 32)
+			if err == nil {
+				metaNodeIDs = append(metaNodeIDs, uint32(nodeID))
+			}
+		}
+	}
+
+	// Deploy data ZDBs, preferring metadata nodes after any manually specified data nodes.
 	dataDeployments, err := deployInBatches(
 		&deploymentDeployer, &gridClient, cfg, "data", cfg.DataSizeGb, workloads.ZDBModeSeq, cfg.ExpectedShards,
-		cfg.DataNodes, existingDeployments, nodePool,
+		cfg.DataNodes, metaNodeIDs, existingDeployments, nodePool,
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy data ZDBs")
@@ -259,6 +271,7 @@ func deployInBatches(
 	mode string,
 	requiredCount int,
 	manualNodes []uint32,
+	preferredNodes []uint32,
 	existing map[uint32]string,
 	pool *nodePool,
 ) ([]*workloads.ZDB, error) {
@@ -267,19 +280,43 @@ func deployInBatches(
 	successfulDeployments := []*workloads.ZDB{}
 	nodesToDeploy := []uint32{}
 
-	// First, check existing and manual nodes
-	for _, nodeID := range manualNodes {
-		if t, ok := existing[nodeID]; ok && t == nodeType {
-			fmt.Printf("Found existing %s deployment on manually specified node %d.\n", nodeType, nodeID)
+	// First, account for ALL existing deployments of the correct type.
+	fmt.Printf("Checking for any existing '%s' deployments...\n", nodeType)
+	for nodeID, t := range existing {
+		if t == nodeType {
+			fmt.Printf("Found existing %s deployment on node %d.\n", nodeType, nodeID)
 			if zdb, err := loadZDB(gridClient, cfg, nodeID, nodeType); err == nil {
 				successfulDeployments = append(successfulDeployments, zdb)
-				pool.MarkUsed(nodeID, nodeType)
+				pool.MarkUsed(nodeID, nodeType) // Mark node as used in the pool
 			} else {
 				fmt.Printf("warn: could not load existing zdb from node %d: %v\n", nodeID, err)
 			}
-		} else {
-			nodesToDeploy = append(nodesToDeploy, nodeID)
 		}
+	}
+	fmt.Printf("Found and loaded %d existing '%s' deployments.\n", len(successfulDeployments), nodeType)
+
+	// Build the list of nodes to deploy, respecting priority.
+	processedForDeployList := make(map[uint32]bool)
+	addNode := func(nodeID uint32) {
+		if _, ok := processedForDeployList[nodeID]; ok {
+			return // already added
+		}
+		// Allow deploying a 'data' zdb on a node that has a 'meta' zdb.
+		t, isUsed := pool.used[nodeID]
+		if !isUsed || (nodeType == "data" && t == "meta") {
+			nodesToDeploy = append(nodesToDeploy, nodeID)
+			processedForDeployList[nodeID] = true
+		}
+	}
+
+	// Prioritize manual nodes
+	for _, nodeID := range manualNodes {
+		addNode(nodeID)
+	}
+
+	// Then add preferred nodes
+	for _, nodeID := range preferredNodes {
+		addNode(nodeID)
 	}
 
 	// Loop until we have enough deployments
