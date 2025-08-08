@@ -136,6 +136,7 @@ func SetupQSFS(isLocal bool) error {
 		DatabasePath:   cfg.DatabasePath,
 		ZdbRotateTime:  cfg.ZdbRotateTime,
 		ZdbDataSize:    cfg.ZdbDataSize,
+		ZdbfsSize:      cfg.ZdbfsSize,
 		MetaBackends:   []service.Backend{},
 		DataBackends:   []service.Backend{},
 	}

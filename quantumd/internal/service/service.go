@@ -46,6 +46,7 @@ type Config struct {
 	DatabasePath   string        `yaml:"database_path"`
 	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
 	ZdbDataSize    string        `yaml:"zdb_data_size"`
+	ZdbfsSize      string        `yaml:"zdbfs_size"`
 	MetaBackends   []Backend     `yaml:"-"`
 	DataBackends   []Backend     `yaml:"-"`
 }

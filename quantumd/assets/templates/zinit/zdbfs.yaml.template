@@ -2,4 +2,5 @@ exec: |
   /usr/local/bin/zdbfs
     {{.QsfsMountpoint}}
     -o autons
+    -o size={{.ZdbfsSize}}
 after: [zdb]

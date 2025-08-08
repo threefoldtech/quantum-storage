@@ -11,6 +11,7 @@ ExecStart=/usr/local/bin/zdbfs \
   --log-level info \
   --cache-size 5120 \
   --cache-shards 1024 \
+  --size {{.ZdbfsSize}} \
   --zstor-socket /tmp/zstor.sock \
   {{.QsfsMountpoint}}
 Restart=always

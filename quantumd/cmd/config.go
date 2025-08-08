@@ -39,6 +39,7 @@ type Config struct {
 	// For templates and internal use
 	MetaSizeGb   int       `yaml:"-"`
 	DataSizeGb   int       `yaml:"-"`
+	ZdbfsSize    string    `yaml:"-"`
 	MetaBackends []Backend `yaml:"-"`
 	DataBackends []Backend `yaml:"-"`
 }
@@ -123,6 +124,27 @@ func LoadConfig(path string) (*Config, error) {
 		backendSizeGB := (backendSizeBytes + (1024*1024*1024 - 1)) / (1024 * 1024 * 1024)
 		cfg.DataSizeGb = int(backendSizeGB)
 		fmt.Printf("Calculated data backend size: %d GB per backend\n", cfg.DataSizeGb)
+	}
+
+	// If TotalStorageSize is present, use it to calculate zdbfs_size
+	if cfg.TotalStorageSize != "" {
+		totalBytes, err := parseSize(cfg.TotalStorageSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse total_storage_size: %w", err)
+		}
+		cfg.ZdbfsSize = fmt.Sprintf("%d", totalBytes)
+		fmt.Printf("Using total_storage_size for zdbfs size: %s\n", cfg.ZdbfsSize)
+	} else if cfg.DataSizeGb > 0 && cfg.ExpectedShards > 0 && cfg.MinShards > 0 {
+		// Otherwise, calculate it from the data backend size.
+		backendSizeBytes := int64(cfg.DataSizeGb) * 1024 * 1024 * 1024
+		totalStorage, err := math.ComputeTotalStorage(backendSizeBytes, int64(cfg.ExpectedShards), int64(cfg.MinShards))
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute total storage for zdbfs size: %w", err)
+		}
+		cfg.ZdbfsSize = fmt.Sprintf("%d", totalStorage)
+		fmt.Printf("Calculated zdbfs size: %s\n", cfg.ZdbfsSize)
+	} else {
+		return nil, fmt.Errorf("cannot calculate zdbfs_size without data_size or total_storage_size, expected_shards, and min_shards")
 	}
 
 	return &cfg, nil
