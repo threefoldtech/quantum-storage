@@ -31,7 +31,6 @@ It essentially runs 'deploy' followed by 'setup'.`,
 				os.Exit(1)
 			}
 			fmt.Println("Deployments destroyed successfully.")
-			return
 		}
 
 		if !isLocal {
