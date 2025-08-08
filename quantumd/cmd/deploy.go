@@ -121,10 +121,8 @@ func DeployBackends(cfg *Config) error {
 
 	deploymentDeployer := deployer.NewDeploymentDeployer(&gridClient)
 
-	twinID := uint64(gridClient.TwinID)
-
 	// Load existing deployments
-	existingDeployments, err := loadExistingDeployments(&gridClient, twinID, cfg.DeploymentName)
+	existingDeployments, err := loadExistingDeployments(&gridClient, cfg)
 	if err != nil {
 		return errors.Wrap(err, "failed to load existing deployments")
 	}
@@ -168,16 +166,16 @@ func DeployBackends(cfg *Config) error {
 }
 
 // Helper to load existing deployments from the grid
-func loadExistingDeployments(gridClient *deployer.TFPluginClient, twinID uint64, deploymentName string) (map[uint32]string, error) {
+func loadExistingDeployments(gridClient *deployer.TFPluginClient, cfg *Config) (map[uint32]string, error) {
 	existing := make(map[uint32]string)
-	contracts, err := grid.GetContracts(gridClient, twinID)
+	contracts, err := grid.GetContracts(gridClient, uint64(gridClient.TwinID))
 	if err != nil {
 		return nil, err
 	}
 
 	for _, contractInfo := range contracts {
 		name := contractInfo.DeploymentName
-		expectedPrefix := fmt.Sprintf("%s_%d", deploymentName, twinID)
+		expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, gridClient.TwinID)
 		if !strings.HasPrefix(name, expectedPrefix) {
 			continue
 		}
@@ -186,17 +184,19 @@ func loadExistingDeployments(gridClient *deployer.TFPluginClient, twinID uint64,
 		if len(parts) != 4 {
 			continue
 		}
+		nodeType := parts[2]
 		nodeID, err := strconv.ParseUint(parts[3], 10, 32)
 		if err != nil {
 			continue
 		}
 
+		gridClient.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
 		// This loads the deployment into grid.State, which is important for loading ZDB details later
-		if _, err := gridClient.State.LoadDeploymentFromGrid(context.Background(), uint32(nodeID), name); err != nil {
+		if _, err := loadZDB(gridClient, cfg, uint32(nodeID), nodeType); err != nil {
 			fmt.Printf("warn: could not load deployment '%s' from grid: %v\n", name, err)
 			continue
 		}
-		existing[uint32(nodeID)] = parts[2] // Store nodeID -> type ("meta" or "data")
+		existing[uint32(nodeID)] = nodeType // Store nodeID -> type ("meta" or "data")
 	}
 	return existing, nil
 }
