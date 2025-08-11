@@ -12,29 +12,29 @@ import (
 )
 
 type Config struct {
-	Network           string        `yaml:"network"`
-	Mnemonic          string        `yaml:"mnemonic"`
-	DeploymentName    string        `yaml:"deployment_name"`
-	MetaNodes         []uint32      `yaml:"meta_nodes"`
-	DataNodes         []uint32      `yaml:"data_nodes"`
-	Farms             []uint64      `yaml:"farms"`
-	ExcludeNodes      []uint32      `yaml:"exclude_nodes"`
-	Password          string        `yaml:"password"`
-	MetaSize          string        `yaml:"meta_size"`
-	DataSize          string        `yaml:"data_size"`
-	TotalStorageSize  string        `yaml:"total_storage_size"`
-	MinShards         int           `yaml:"min_shards"`
-	ExpectedShards    int           `yaml:"expected_shards"`
-	ZdbRootPath       string        `yaml:"zdb_root_path"`
-	QsfsMountpoint    string        `yaml:"qsfs_mountpoint"`
-	CachePath         string        `yaml:"cache_path"`
-	RetryInterval     time.Duration `yaml:"retry_interval"`
-	DatabasePath      string        `yaml:"database_path"`
-	ZdbRotateTime     time.Duration `yaml:"zdb_rotate_time"`
-	ZdbConnectionType string        `yaml:"zdb_connection_type"`
-	ZdbDataSize       string        `yaml:"zdb_data_size"`
-	PrometheusPort    int           `yaml:"prometheus_port"`
-	MaxDeploymentRetries int        `yaml:"max_deployment_retries"`
+	Network              string        `yaml:"network"`
+	Mnemonic             string        `yaml:"mnemonic"`
+	DeploymentName       string        `yaml:"deployment_name"`
+	MetaNodes            []uint32      `yaml:"meta_nodes"`
+	DataNodes            []uint32      `yaml:"data_nodes"`
+	Farms                []uint64      `yaml:"farms"`
+	ExcludeNodes         []uint32      `yaml:"exclude_nodes"`
+	Password             string        `yaml:"password"`
+	MetaSize             string        `yaml:"meta_size"`
+	DataSize             string        `yaml:"data_size"`
+	TotalStorageSize     string        `yaml:"total_storage_size"`
+	MinShards            int           `yaml:"min_shards"`
+	ExpectedShards       int           `yaml:"expected_shards"`
+	ZdbRootPath          string        `yaml:"zdb_root_path"`
+	QsfsMountpoint       string        `yaml:"qsfs_mountpoint"`
+	CachePath            string        `yaml:"cache_path"`
+	RetryInterval        time.Duration `yaml:"retry_interval"`
+	DatabasePath         string        `yaml:"database_path"`
+	ZdbRotateTime        time.Duration `yaml:"zdb_rotate_time"`
+	ZdbConnectionType    string        `yaml:"zdb_connection_type"`
+	ZdbDataSize          string        `yaml:"zdb_data_size"`
+	PrometheusPort       int           `yaml:"prometheus_port"`
+	MaxDeploymentRetries int           `yaml:"max_deployment_retries"`
 
 	// For templates and internal use
 	MetaSizeGb   int       `yaml:"-"`
@@ -133,7 +133,7 @@ func LoadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("failed to parse total_storage_size: %w", err)
 		}
 		cfg.ZdbfsSize = fmt.Sprintf("%d", totalBytes)
-		fmt.Printf("Using total_storage_size for zdbfs size: %s\n", cfg.ZdbfsSize)
+		fmt.Printf("Using total_storage_size for zdbfs size: %s\n", cfg.TotalStorageSize)
 	} else if cfg.DataSizeGb > 0 && cfg.ExpectedShards > 0 && cfg.MinShards > 0 {
 		// Otherwise, calculate it from the data backend size.
 		backendSizeBytes := int64(cfg.DataSizeGb) * 1024 * 1024 * 1024
