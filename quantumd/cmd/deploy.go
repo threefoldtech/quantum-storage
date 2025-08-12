@@ -44,19 +44,6 @@ func mapIPs(ips []string) map[string]string {
 	return mapped
 }
 
-func parseNodeIDs(input string) ([]uint32, error) {
-	parts := strings.Split(input, ",")
-	ids := make([]uint32, 0, len(parts))
-	for _, part := range parts {
-		id, err := strconv.ParseUint(strings.TrimSpace(part), 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		ids = append(ids, uint32(id))
-	}
-	return ids, nil
-}
-
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy backend ZDBs on the ThreeFold Grid",
