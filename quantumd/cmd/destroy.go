@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
@@ -20,7 +18,7 @@ var destroyCmd = &cobra.Command{
 	Short: "Destroy backend ZDBs on the ThreeFold Grid",
 	Long:  `Destroys backend ZDBs on the ThreeFold Grid.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := LoadConfig(ConfigFile)
+		cfg, err := config.LoadConfig(ConfigFile)
 		if err != nil {
 			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
@@ -60,7 +58,7 @@ var destroyCmd = &cobra.Command{
 			}
 		}
 
-		if err := DestroyBackends(&gridClient, contractsToCancel); err != nil {
+		if err := grid.DestroyBackends(&gridClient, contractsToCancel); err != nil {
 			fmt.Printf("Error destroying deployments: %v\n", err)
 			os.Exit(1)
 		}
@@ -70,43 +68,4 @@ var destroyCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(destroyCmd)
 	destroyCmd.Flags().BoolVarP(&force, "force", "f", false, "Force destruction without confirmation")
-}
-
-func DestroyAllBackends(cfg *config.Config) error {
-	gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
-	if err != nil {
-		fmt.Printf("failed to create grid client: %v\n", err)
-		os.Exit(1)
-	}
-
-	twinID := uint64(gridClient.TwinID)
-	contractsToCancel, err := grid.GetDeploymentContracts(&gridClient, twinID, cfg.DeploymentName)
-	if err != nil {
-		fmt.Printf("failed to query contracts for twin %d: %v\n", twinID, err)
-		os.Exit(1)
-	}
-	if err := DestroyBackends(&gridClient, contractsToCancel); err != nil {
-		return err
-	}
-	return nil
-}
-
-func DestroyBackends(gridClient *deployer.TFPluginClient, contractsToCancel []grid.DeploymentInfo) error {
-	if len(contractsToCancel) == 0 {
-		fmt.Println("No deployments to destroy.")
-		return nil
-	}
-
-	contractIDs := make([]uint64, 0, len(contractsToCancel))
-	for _, contract := range contractsToCancel {
-		contractIDs = append(contractIDs, uint64(contract.Contract.ContractID))
-	}
-
-	fmt.Printf("Destroying deployments with contract IDs %v\n", contractIDs)
-	if err := gridClient.SubstrateConn.BatchCancelContract(gridClient.Identity, contractIDs); err != nil {
-		return errors.Wrap(err, "failed to destroy deployments")
-	}
-
-	fmt.Println("All deployments destroyed successfully.")
-	return nil
 }

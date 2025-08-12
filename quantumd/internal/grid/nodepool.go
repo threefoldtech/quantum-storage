@@ -1,6 +1,7 @@
 package grid
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
+	"github.com/threefoldtech/tfgrid-sdk-go/grid-proxy/pkg/types"
 )
 
 // newNodePool creates a helper for managing available nodes for deployment.
@@ -46,7 +48,7 @@ func (p *NodePool) Get(count int) ([]uint32, error) {
 
 	// Fetch available nodes from farms
 	hru := uint64(p.cfg.DataSizeGb) * 1024 * 1024 * 1024 // Use data size for filtering
-	availableNodes, err := GetNodesFromFarms(p.gridClient, p.cfg.Farms, hru, 0)
+	availableNodes, err := p.getNodesFromFarms(p.cfg.Farms, hru, 0)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get nodes from farms")
 	}
@@ -74,4 +76,27 @@ func (p *NodePool) MarkUsed(nodeID uint32, nodeType string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.Used[nodeID] = nodeType
+}
+
+func (p *NodePool) getNodesFromFarms(farmIDs []uint64, hru, sru uint64) ([]uint32, error) {
+	rentedFalse := false
+	filter := types.NodeFilter{
+		FarmIDs: farmIDs,
+		FreeSRU: &sru,
+		FreeHRU: &hru,
+		Rented:  &rentedFalse,
+		Status:  []string{"up"},
+	}
+
+	nodes, _, err := p.gridClient.GridProxyClient.Nodes(context.Background(), filter, types.Limit{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodes from grid proxy")
+	}
+
+	var nodeIDs []uint32
+	for _, node := range nodes {
+		nodeIDs = append(nodeIDs, uint32(node.NodeID))
+	}
+
+	return nodeIDs, nil
 }

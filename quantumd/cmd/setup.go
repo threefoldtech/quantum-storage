@@ -15,6 +15,7 @@ import (
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 
 	"github.com/spf13/cobra"
 )
@@ -73,7 +74,7 @@ func init() {
 }
 
 func SetupQSFS(isLocal bool) error {
-	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
+	cfg, err := config.LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
 		// In local mode, a config file is not strictly required.
 		// We can proceed with a default config.
@@ -189,13 +190,13 @@ func startService(name string) error {
 
 func generateLocalZstorConfig() error {
 	fmt.Println("Generating local zstor config...")
-	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
+	cfg, err := config.LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
 		// Fallback to a default if config is not present
 		cfg = &config.Config{}
 	}
 
-	size, err := parseSize(cfg.ZdbDataSize)
+	size, err := util.ParseSize(cfg.ZdbDataSize)
 	if err != nil {
 		return fmt.Errorf("failed to parse zdb_data_size for local config: %w", err)
 	}

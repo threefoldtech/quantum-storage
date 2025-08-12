@@ -90,7 +90,7 @@ func startPrometheusServer(port int) {
 func loadDaemonConfig(cmd *cobra.Command) (*config.Config, error) {
 	if localMode, _ := cmd.Flags().GetBool("local"); localMode {
 		if _, err := os.Stat(ConfigFile); err == nil {
-			return LoadConfig(ConfigFile)
+			return config.LoadConfig(ConfigFile)
 		}
 		// Return a default config for local mode if no config file is present
 		return &config.Config{
@@ -104,7 +104,7 @@ func loadDaemonConfig(cmd *cobra.Command) (*config.Config, error) {
 		}, nil
 	}
 	// In remote mode, config is required
-	return LoadConfig(ConfigFile)
+	return config.LoadConfig(ConfigFile)
 }
 
 func init() {

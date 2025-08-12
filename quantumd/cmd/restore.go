@@ -19,6 +19,7 @@ import (
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
 var restoreCmd = &cobra.Command{
@@ -45,7 +46,7 @@ func runRestore() error {
 		return fmt.Errorf("failed to download binaries: %w", err)
 	}
 
-	cfg, err := LoadConfig(ConfigFile)
+	cfg, err := config.LoadConfig(ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -110,9 +111,14 @@ func runRestore() error {
 	}
 
 	// 3. Generate zstor config
-	fmt.Println("Generating zstor configuration file...")
-	if err := generateRemoteConfig(cfg, metaDeployments, dataDeployments); err != nil {
-		return errors.Wrap(err, "failed to generate zstor config")
+	zstorConfig, err := zstor.GenerateRemoteConfig(cfg, metaDeployments, dataDeployments)
+	if err != nil {
+		return errors.Wrap(err, "failed to generate remote config")
+	}
+
+	// Write config file
+	if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	// 4. Setup hook symlink

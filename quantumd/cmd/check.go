@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
@@ -25,7 +26,7 @@ var checkCmd = &cobra.Command{
 database hash versus their current local hash. It helps in verifying the integrity
 of the stored files. It also checks for any pending uploads.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := LoadConfig(ConfigFile)
+		cfg, err := config.LoadConfig(ConfigFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}

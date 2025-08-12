@@ -5,6 +5,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
 var initCmd = &cobra.Command{
@@ -15,7 +18,7 @@ For remote deployments, it first deploys ZDB backends on the grid and then sets 
 For local deployments (using --local), it skips the grid deployment and sets up a local test environment.
 It essentially runs 'deploy' followed by 'setup'.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := LoadConfig(ConfigFile)
+		cfg, err := config.LoadConfig(ConfigFile)
 		if err != nil {
 			fmt.Printf("Error loading config: %v\n", err)
 			os.Exit(1)
@@ -26,7 +29,7 @@ It essentially runs 'deploy' followed by 'setup'.`,
 
 		if destroy {
 			fmt.Println("Destroying existing deployments...")
-			if err := DestroyAllBackends(cfg); err != nil {
+			if err := grid.DestroyAllBackends(cfg); err != nil {
 				fmt.Printf("Error destroying deployments: %v\n", err)
 				os.Exit(1)
 			}
@@ -34,12 +37,22 @@ It essentially runs 'deploy' followed by 'setup'.`,
 		}
 
 		if !isLocal {
-			fmt.Println("Deploying backends on the grid...")
-			if err := DeployBackends(cfg); err != nil {
+			metaDeployments, dataDeployments, err := grid.DeployBackends(cfg)
+			if err != nil {
 				fmt.Printf("Error deploying backends: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("Backends deployed successfully.")
+
+			zstorConfig, err := zstor.GenerateRemoteConfig(cfg, metaDeployments, dataDeployments)
+			if err != nil {
+				fmt.Printf("Error generating remote config: %v\n", err)
+				os.Exit(1)
+			}
+
+			if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
+				fmt.Printf("Error writing config file: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
 		fmt.Println("Setting up QSFS components...")
