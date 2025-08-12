@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
@@ -31,7 +32,6 @@ var (
 func init() {
 	prometheus.MustRegister(lastRetryRunTime)
 }
-
 
 var daemonCmd = &cobra.Command{
 	Use:   "daemon",
@@ -87,13 +87,13 @@ func startPrometheusServer(port int) {
 	}
 }
 
-func loadDaemonConfig(cmd *cobra.Command) (*Config, error) {
+func loadDaemonConfig(cmd *cobra.Command) (*config.Config, error) {
 	if localMode, _ := cmd.Flags().GetBool("local"); localMode {
 		if _, err := os.Stat(ConfigFile); err == nil {
 			return LoadConfig(ConfigFile)
 		}
 		// Return a default config for local mode if no config file is present
-		return &Config{
+		return &config.Config{
 			QsfsMountpoint: "/mnt/qsfs",
 			ZdbRootPath:    "/var/lib/zdb",
 			CachePath:      "/var/cache/zdbfs",
@@ -220,7 +220,7 @@ func (ut *uploadTracker) MarkUploadedBatch(filesToUpdate map[string]string) erro
 	return tx.Commit()
 }
 
-func newRetryManager(cfg *Config, tracker *uploadTracker, zstorClient *zstor.Client) (*retryManager, error) {
+func newRetryManager(cfg *config.Config, tracker *uploadTracker, zstorClient *zstor.Client) (*retryManager, error) {
 	interval := cfg.RetryInterval
 	if interval <= 0 {
 		interval = defaultRetryInterval

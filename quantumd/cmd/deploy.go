@@ -4,17 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	bip39 "github.com/tyler-smith/go-bip39"
 )
@@ -85,7 +84,7 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-func DeployBackends(cfg *Config) error {
+func DeployBackends(cfg *config.Config) error {
 	if cfg.MetaSizeGb <= 0 {
 		return fmt.Errorf("meta_size must be greater than 0")
 	}
@@ -109,7 +108,7 @@ func DeployBackends(cfg *Config) error {
 	fmt.Printf("Found %d existing deployments.\n", len(existingDeployments))
 
 	// Node pool for automatic selection
-	nodePool := newNodePool(cfg, &gridClient, existingDeployments)
+	nodePool := grid.NewNodePool(cfg, &gridClient, existingDeployments)
 
 	// Deploy metadata ZDBs
 	metaDeployments, err := deployInBatches(
@@ -146,7 +145,7 @@ func DeployBackends(cfg *Config) error {
 }
 
 // Helper to load existing deployments from the grid
-func loadExistingDeployments(gridClient *deployer.TFPluginClient, cfg *Config) (map[uint32]string, error) {
+func loadExistingDeployments(gridClient *deployer.TFPluginClient, cfg *config.Config) (map[uint32]string, error) {
 	existing := make(map[uint32]string)
 	contracts, err := grid.GetContracts(gridClient, uint64(gridClient.TwinID))
 	if err != nil {
@@ -181,78 +180,12 @@ func loadExistingDeployments(gridClient *deployer.TFPluginClient, cfg *Config) (
 	return existing, nil
 }
 
-// newNodePool creates a helper for managing available nodes for deployment.
-func newNodePool(cfg *Config, gridClient *deployer.TFPluginClient, existing map[uint32]string) *nodePool {
-	return &nodePool{
-		cfg:        cfg,
-		gridClient: gridClient,
-		used:       existing,
-		mu:         sync.Mutex{},
-	}
-}
-
-type nodePool struct {
-	cfg        *Config
-	gridClient *deployer.TFPluginClient
-	used       map[uint32]string // nodeID -> type
-	mu         sync.Mutex
-}
-
-func (p *nodePool) Get(count int) ([]uint32, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if len(p.cfg.Farms) == 0 {
-		return nil, errors.New("no farms configured for automatic node selection")
-	}
-
-	// Collect all nodes that have been used in any capacity
-	excludedNodes := make(map[uint32]bool)
-	for nodeID := range p.used {
-		excludedNodes[nodeID] = true
-	}
-	for _, nodeID := range p.cfg.ExcludeNodes {
-		excludedNodes[nodeID] = true
-	}
-
-	// Fetch available nodes from farms
-	hru := uint64(p.cfg.DataSizeGb) * 1024 * 1024 * 1024 // Use data size for filtering
-	availableNodes, err := grid.GetNodesFromFarms(p.gridClient, p.cfg.Farms, hru, 0)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get nodes from farms")
-	}
-
-	// Filter out excluded nodes
-	candidates := []uint32{}
-	for _, nodeID := range availableNodes {
-		if !excludedNodes[nodeID] {
-			candidates = append(candidates, nodeID)
-		}
-	}
-
-	if len(candidates) < count {
-		return nil, fmt.Errorf("not enough available nodes in farms, needed %d, found %d", count, len(candidates))
-	}
-
-	rand.Shuffle(len(candidates), func(i, j int) {
-		candidates[i], candidates[j] = candidates[j], candidates[i]
-	})
-
-	return candidates[:count], nil
-}
-
-func (p *nodePool) MarkUsed(nodeID uint32, nodeType string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.used[nodeID] = nodeType
-}
-
 // deployInBatches handles the entire lifecycle of deploying a group of ZDBs,
 // including retries on failure.
 func deployInBatches(
 	deploymentDeployer *deployer.DeploymentDeployer,
 	gridClient *deployer.TFPluginClient,
-	cfg *Config,
+	cfg *config.Config,
 	nodeType string,
 	sizeGB int,
 	mode string,
@@ -260,7 +193,7 @@ func deployInBatches(
 	manualNodes []uint32,
 	preferredNodes []uint32,
 	existing map[uint32]string,
-	pool *nodePool,
+	pool *grid.NodePool,
 ) ([]*workloads.ZDB, error) {
 
 	twinID := uint64(gridClient.TwinID)
@@ -289,7 +222,7 @@ func deployInBatches(
 			return // already added
 		}
 		// Allow deploying a 'data' zdb on a node that has a 'meta' zdb.
-		t, isUsed := pool.used[nodeID]
+		t, isUsed := pool.Used[nodeID]
 		if !isUsed || (nodeType == "data" && t == "meta") {
 			nodesToDeploy = append(nodesToDeploy, nodeID)
 			processedForDeployList[nodeID] = true
@@ -396,7 +329,7 @@ func deployInBatches(
 }
 
 // loadZDB is a helper to load a ZDB from the grid.
-func loadZDB(gridClient *deployer.TFPluginClient, cfg *Config, nodeID uint32, nodeType string) (*workloads.ZDB, error) {
+func loadZDB(gridClient *deployer.TFPluginClient, cfg *config.Config, nodeID uint32, nodeType string) (*workloads.ZDB, error) {
 	twinID := uint64(gridClient.TwinID)
 	name := fmt.Sprintf("%s_%d_%s_%d", cfg.DeploymentName, twinID, nodeType, nodeID)
 	resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), nodeID, name, name)
@@ -406,7 +339,7 @@ func loadZDB(gridClient *deployer.TFPluginClient, cfg *Config, nodeID uint32, no
 	return &resZDB, nil
 }
 
-func generateRemoteConfig(cfg *Config, meta, data []*workloads.ZDB) error {
+func generateRemoteConfig(cfg *config.Config, meta, data []*workloads.ZDB) error {
 	key, err := keyFromMnemonic(cfg.Mnemonic, cfg.Password)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate key from mnemonic")

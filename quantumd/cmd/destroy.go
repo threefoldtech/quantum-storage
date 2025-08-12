@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 )
 
@@ -71,7 +72,7 @@ func init() {
 	destroyCmd.Flags().BoolVarP(&force, "force", "f", false, "Force destruction without confirmation")
 }
 
-func DestroyAllBackends(cfg *Config) error {
+func DestroyAllBackends(cfg *config.Config) error {
 	gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
 	if err != nil {
 		fmt.Printf("failed to create grid client: %v\n", err)

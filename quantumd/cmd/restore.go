@@ -15,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
@@ -253,7 +254,7 @@ func waitForServices() error {
 	}
 }
 
-func recoverData(cfg *Config) error {
+func recoverData(cfg *config.Config) error {
 	// This function implements the logic from the recover.sh script.
 	zstorCmd := func(args ...string) error {
 		cmdArgs := append([]string{"-c", ConfigOutPath}, args...)

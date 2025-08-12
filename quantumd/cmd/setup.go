@@ -12,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 
@@ -77,7 +78,7 @@ func SetupQSFS(isLocal bool) error {
 		// In local mode, a config file is not strictly required.
 		// We can proceed with a default config.
 		if isLocal && os.IsNotExist(err) {
-			cfg = &Config{
+			cfg = &config.Config{
 				QsfsMountpoint: "/mnt/qsfs",
 				ZdbRootPath:    "/var/lib/zdb",
 				CachePath:      "/var/cache/zdbfs",
@@ -191,7 +192,7 @@ func generateLocalZstorConfig() error {
 	cfg, err := LoadConfig(rootCmd.Flag("config").Value.String())
 	if err != nil {
 		// Fallback to a default if config is not present
-		cfg = &Config{}
+		cfg = &config.Config{}
 	}
 
 	size, err := parseSize(cfg.ZdbDataSize)
@@ -356,7 +357,7 @@ func DownloadBinaries() error {
 	return nil
 }
 
-func CreateDirectories(cfg *Config, localMode bool) (bool, error) {
+func CreateDirectories(cfg *config.Config, localMode bool) (bool, error) {
 	dirs := []string{
 		cfg.QsfsMountpoint,
 		"/var/log",
