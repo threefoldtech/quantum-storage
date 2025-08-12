@@ -69,10 +69,6 @@ The command will retry failed deployments on new nodes from the specified farms 
 			os.Exit(1)
 		}
 
-		if cfg.DeploymentName == "" {
-			fmt.Println("Error: deployment_name is required in config")
-			os.Exit(1)
-		}
 		if len(cfg.MetaNodes) == 0 && len(cfg.Farms) == 0 {
 			fmt.Println("Error: either meta_nodes or farms must be specified in config")
 			os.Exit(1)

@@ -53,9 +53,6 @@ func runRestore() error {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	if cfg.DeploymentName == "" {
-		return errors.New("deployment_name is required in config")
-	}
 	if cfg.Mnemonic == "" {
 		return errors.New("mnemonic is required in config")
 	}

@@ -82,6 +82,10 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.MaxDeploymentRetries = 5
 	}
 
+	if cfg.DeploymentName == "" {
+		return nil, fmt.Errorf("deployment_name is required in config")
+	}
+
 	// Validate ZdbDataSize
 	if size, err := parseSize(cfg.ZdbDataSize); err != nil {
 		return nil, err

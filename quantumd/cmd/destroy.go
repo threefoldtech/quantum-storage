@@ -25,11 +25,6 @@ var destroyCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if cfg.DeploymentName == "" {
-			fmt.Println("deployment_name is required in config for destroying")
-			os.Exit(1)
-		}
-
 		network := Network
 		if cfg.Network != "" {
 			network = cfg.Network
@@ -81,11 +76,6 @@ func init() {
 }
 
 func DestroyAllBackends(cfg *Config) error {
-	if cfg.DeploymentName == "" {
-		fmt.Println("deployment_name is required in config for destroying")
-		os.Exit(1)
-	}
-
 	network := Network
 	if cfg.Network != "" {
 		network = cfg.Network
