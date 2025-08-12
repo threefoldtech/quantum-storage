@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
@@ -198,76 +200,23 @@ func generateLocalZstorConfig() error {
 	}
 	zdbDataSizeMb := size / (1024 * 1024)
 
-	config := fmt.Sprintf(`minimal_shards = 2
-expected_shards = 4
-redundant_groups = 0
-redundant_nodes = 0
-root = "/"
-zdbfs_mountpoint = "/mnt/"
-socket = "/tmp/zstor.sock"
-prometheus_port = 9200
-zdb_data_dir_path = "/data/data/zdbfs-data/"
-max_zdb_data_dir_size = %d
+	tmpl, err := template.ParseFS(TemplateAssets, "templates/zstor.local.conf.template")
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
 
-[compression]
-algorithm = "snappy"
+	var tpl bytes.Buffer
+	data := struct {
+		MaxZdbDataDirSize uint64
+	}{
+		MaxZdbDataDirSize: zdbDataSizeMb,
+	}
 
-[meta]
-type = "zdb"
+	if err := tmpl.Execute(&tpl, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
 
-[meta.config]
-prefix = "zstor-meta"
-
-[encryption]
-algorithm = "AES"
-key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
-
-[meta.config.encryption]
-algorithm = "AES"
-key = "5ee8ab34dbd57df581d9aada2e433f3fae7e55833f9350fa74dfe196d0f5240f"
-
-[[meta.config.backends]]
-address = "127.0.0.1:9901"
-namespace = "meta1"
-password = "zdbpassword"
-
-[[meta.config.backends]]
-address = "127.0.0.1:9902"
-namespace = "meta2"
-password = "zdbpassword"
-
-[[meta.config.backends]]
-address = "127.0.0.1:9903"
-namespace = "meta3"
-password = "zdbpassword"
-
-[[meta.config.backends]]
-address = "127.0.0.1:9904"
-namespace = "meta4"
-password = "zdbpassword"
-
-[[groups]]
-[[groups.backends]]
-address = "127.0.0.1:9901"
-namespace = "data1"
-password = "zdbpassword"
-
-[[groups.backends]]
-address = "127.0.0.1:9902"
-namespace = "data2"
-password = "zdbpassword"
-
-[[groups.backends]]
-address = "127.0.0.1:9903"
-namespace = "data3"
-password = "zdbpassword"
-
-[[groups.backends]]
-address = "127.0.0.1:9904"
-namespace = "data4"
-password = "zdbpassword"
-`, zdbDataSizeMb)
-	return os.WriteFile("/etc/zstor.toml", []byte(config), 0644)
+	return os.WriteFile("/etc/zstor.toml", tpl.Bytes(), 0644)
 }
 
 func initNamespaces() error {
@@ -446,4 +395,3 @@ func IsEmpty(name string) (bool, error) {
 	}
 	return false, err
 }
-
