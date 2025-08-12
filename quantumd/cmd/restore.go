@@ -55,13 +55,7 @@ func runRestore() error {
 
 	fmt.Println("Starting restoration process...")
 
-	// 1. Connect to the grid and find deployments
-	fmt.Println("Connecting to the grid to find existing deployments...")
-	network := Network
-	if cfg.Network != "" {
-		network = cfg.Network
-	}
-	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
+	gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}

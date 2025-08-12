@@ -14,6 +14,8 @@ import (
 type Config struct {
 	Network              string        `yaml:"network"`
 	Mnemonic             string        `yaml:"mnemonic"`
+	RelayURL             string        `yaml:"relay_url"`
+	RMBTimeout           time.Duration `yaml:"rmb_timeout"`
 	DeploymentName       string        `yaml:"deployment_name"`
 	MetaNodes            []uint32      `yaml:"meta_nodes"`
 	DataNodes            []uint32      `yaml:"data_nodes"`
@@ -62,8 +64,23 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Override with environment variables if they are set
+	if network := os.Getenv("NETWORK"); network != "" {
+		cfg.Network = network
+	}
+
 	if mnemonic := os.Getenv("MNEMONIC"); mnemonic != "" {
 		cfg.Mnemonic = mnemonic
+	}
+
+	if cfg.RMBTimeout == 0 {
+		cfg.RMBTimeout = 10 * time.Second
+	}
+
+	if cfg.RelayURL == "" {
+		cfg.RelayURL = "wss://relay.grid.tf"
+		if cfg.Network != "main" {
+			cfg.RelayURL = fmt.Sprintf("wss://relay.%s.grid.tf", cfg.Network)
+		}
 	}
 
 	if cfg.ZdbRotateTime == 0 {

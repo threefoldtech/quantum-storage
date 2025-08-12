@@ -106,11 +106,8 @@ func DeployBackends(cfg *Config) error {
 		return fmt.Errorf("data_size or total_storage_size must be set to a value greater than 0")
 	}
 
-	network := Network
-	if cfg.Network != "" {
-		network = cfg.Network
-	}
-	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
+	gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
+
 	if err != nil {
 		return errors.Wrap(err, "failed to create grid client")
 	}

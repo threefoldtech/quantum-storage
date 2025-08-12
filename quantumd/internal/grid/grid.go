@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/scottyeager/tfgrid-sdk-go/grid-client/deployer"
@@ -16,16 +17,11 @@ type DeploymentInfo struct {
 	DeploymentName string
 }
 
-func NewGridClient(mnemonic, network string) (deployer.TFPluginClient, error) {
-	relay := "wss://relay.grid.tf"
-	if network != "main" {
-		relay = fmt.Sprintf("wss://relay.%s.grid.tf", network)
-	}
-
+func NewGridClient(network string, mnemonic string, relayURL string, rmbTimeout time.Duration) (deployer.TFPluginClient, error) {
 	return deployer.NewTFPluginClient(mnemonic,
-		deployer.WithRelayURL(relay),
+		deployer.WithRelayURL(relayURL),
 		deployer.WithNetwork(network),
-		deployer.WithRMBTimeout(100),
+		deployer.WithRMBTimeout(int(rmbTimeout.Seconds())),
 	)
 }
 

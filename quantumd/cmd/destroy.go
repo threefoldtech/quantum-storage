@@ -25,12 +25,8 @@ var destroyCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		network := Network
-		if cfg.Network != "" {
-			network = cfg.Network
-		}
+		gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
 
-		gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
 		if err != nil {
 			fmt.Printf("failed to create grid client: %v\n", err)
 			os.Exit(1)
@@ -76,12 +72,7 @@ func init() {
 }
 
 func DestroyAllBackends(cfg *Config) error {
-	network := Network
-	if cfg.Network != "" {
-		network = cfg.Network
-	}
-
-	gridClient, err := grid.NewGridClient(cfg.Mnemonic, network)
+	gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
 	if err != nil {
 		fmt.Printf("failed to create grid client: %v\n", err)
 		os.Exit(1)
