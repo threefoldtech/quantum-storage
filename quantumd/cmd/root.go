@@ -43,16 +43,8 @@ func init() {
 }
 
 var (
-	LocalMode     bool
-	Mnemonic      string
 	ConfigOutPath string
-	Network       = func() string {
-		if env := os.Getenv("NETWORK"); env != "" {
-			return env
-		}
-		return "dev" // default to devnet
-	}()
-	ConfigFile string
+	ConfigFile    string
 	// Version information will be set during build
 	version = "dev"
 	commit  = ""
