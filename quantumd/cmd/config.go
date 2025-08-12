@@ -85,6 +85,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.DeploymentName == "" {
 		return nil, fmt.Errorf("deployment_name is required in config")
 	}
+	if cfg.Mnemonic == "" {
+		return nil, fmt.Errorf("mnemonic is required in config or as environment variable MNEMONIC")
+	}
 
 	// Validate ZdbDataSize
 	if size, err := parseSize(cfg.ZdbDataSize); err != nil {

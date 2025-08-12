@@ -53,10 +53,6 @@ func runRestore() error {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	if cfg.Mnemonic == "" {
-		return errors.New("mnemonic is required in config")
-	}
-
 	fmt.Println("Starting restoration process...")
 
 	// 1. Connect to the grid and find deployments
