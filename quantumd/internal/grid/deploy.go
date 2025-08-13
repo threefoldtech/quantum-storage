@@ -16,18 +16,12 @@ import (
 // Zstor has a hardcoded metadata node count of 4
 const metaNodeCount = 4
 
-func DeployBackends(cfg *config.Config) ([]workloads.Deployment, []workloads.Deployment, error) {
+func DeployBackends(gridClient deployer.TFPluginClient, cfg *config.Config) ([]workloads.Deployment, []workloads.Deployment, error) {
 	if cfg.MetaSizeGb <= 0 {
 		return nil, nil, fmt.Errorf("meta_size must be greater than 0")
 	}
 	if cfg.DataSizeGb <= 0 {
 		return nil, nil, fmt.Errorf("data_size or total_storage_size must be set to a value greater than 0")
-	}
-
-	gridClient, err := NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
-
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create grid client")
 	}
 
 	deploymentDeployer := deployer.NewDeploymentDeployer(&gridClient)

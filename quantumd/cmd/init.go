@@ -24,6 +24,13 @@ It essentially runs 'deploy' followed by 'setup'.`,
 			os.Exit(1)
 		}
 
+		gridClient, err := grid.NewGridClient(cfg.Network, cfg.Mnemonic, cfg.RelayURL, cfg.RMBTimeout)
+
+		if err != nil {
+			fmt.Printf("Error creating grid client: %v\n", err)
+			os.Exit(1)
+		}
+
 		isLocal, _ := cmd.Flags().GetBool("local")
 		destroy, _ := cmd.Flags().GetBool("destroy")
 
@@ -37,7 +44,7 @@ It essentially runs 'deploy' followed by 'setup'.`,
 		}
 
 		if !isLocal {
-			metaDeployments, dataDeployments, err := grid.DeployBackends(cfg)
+			metaDeployments, dataDeployments, err := grid.DeployBackends(gridClient, cfg)
 			if err != nil {
 				fmt.Printf("Error deploying backends: %v\n", err)
 				os.Exit(1)
