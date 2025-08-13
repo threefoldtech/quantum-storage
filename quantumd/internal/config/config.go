@@ -71,7 +71,7 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	if cfg.RMBTimeout == 0 {
-		cfg.RMBTimeout = 10 * time.Second
+		cfg.RMBTimeout = 30 * time.Second
 	}
 
 	if cfg.RelayURL == "" {
