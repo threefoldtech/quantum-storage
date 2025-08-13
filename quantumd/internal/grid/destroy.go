@@ -28,7 +28,7 @@ func DestroyAllBackends(cfg *config.Config) error {
 	return nil
 }
 
-func DestroyBackends(gridClient *deployer.TFPluginClient, contractsToCancel []DeploymentInfo) error {
+func DestroyBackends(gridClient *deployer.TFPluginClient, contractsToCancel []NamedContract) error {
 	if len(contractsToCancel) == 0 {
 		fmt.Println("No deployments to destroy.")
 		return nil

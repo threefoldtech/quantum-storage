@@ -13,7 +13,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/grid"
@@ -62,49 +61,14 @@ func runRestore() error {
 		return errors.Wrap(err, "failed to create grid client")
 	}
 
-	twinID := uint64(gridClient.TwinID)
-	contracts, err := grid.GetContracts(&gridClient, twinID)
+	metaDeployments, dataDeployments, err := grid.LoadExistingDeployments(&gridClient, cfg)
+
 	if err != nil {
-		return errors.Wrapf(err, "failed to query for existing contracts for twin %d", twinID)
+		return errors.Wrap(err, "failed to load existing deployments")
 	}
 
 	// 2. Filter deployments and load ZDBs
-	fmt.Println("Filtering deployments and loading ZDB information...")
-	var metaDeployments []*workloads.ZDB
-	var dataDeployments []*workloads.ZDB
-
-	for _, contractInfo := range contracts {
-		name := contractInfo.DeploymentName
-		expectedPrefix := fmt.Sprintf("%s_%d", cfg.DeploymentName, twinID)
-		if !strings.HasPrefix(name, expectedPrefix) {
-			continue
-		}
-
-		parts := strings.Split(name, "_")
-		if len(parts) != 4 {
-			continue
-		}
-		nodeType := parts[2]
-		nodeID, err := strconv.ParseUint(parts[3], 10, 32)
-		if err != nil {
-			fmt.Printf("warn: could not parse nodeID from deployment name '%s': %v\n", name, err)
-			continue
-		}
-
-		gridClient.State.StoreContractIDs(uint32(nodeID), uint64(contractInfo.Contract.ContractID))
-		resZDB, err := gridClient.State.LoadZdbFromGrid(context.TODO(), uint32(nodeID), name, name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to load deployed ZDB '%s' from node %d", name, nodeID)
-		}
-
-		if nodeType == "meta" {
-			metaDeployments = append(metaDeployments, &resZDB)
-			fmt.Printf("Found metadata ZDB '%s' on node %d\n", name, nodeID)
-		} else if nodeType == "data" {
-			dataDeployments = append(dataDeployments, &resZDB)
-			fmt.Printf("Found data ZDB '%s' on node %d\n", name, nodeID)
-		}
-	}
+	fmt.Println("Checking deployments and loading ZDB information...")
 
 	if len(metaDeployments) == 0 || len(dataDeployments) == 0 {
 		return errors.New("no existing meta or data backends found for the given deployment name. cannot proceed with restore")

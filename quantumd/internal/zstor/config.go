@@ -12,15 +12,15 @@ import (
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 )
 
-func GenerateRemoteConfig(cfg *config.Config, meta, data []*workloads.ZDB) string, err {
+func GenerateRemoteConfig(cfg *config.Config, meta, data []workloads.Deployment) (string, error) {
 	key, err := keyFromMnemonic(cfg.Mnemonic, cfg.Password)
 	if err != nil {
-		return errors.Wrap(err, "failed to generate key from mnemonic")
+		return "", errors.Wrap(err, "failed to generate key from mnemonic")
 	}
 
 	size, err := util.ParseSize(cfg.ZdbDataSize)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse zdb_data_size")
+		return "", errors.Wrap(err, "failed to parse zdb_data_size")
 	}
 	zdbDataSizeMb := size / (1024 * 1024)
 
@@ -54,11 +54,12 @@ algorithm = "AES"
 key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootPath, zdbDataSizeMb, key, key))
 
 	// Add meta backends
-	for _, zdb := range meta {
+	for _, deployment := range meta {
+		zdb := deployment.Zdbs[0]
 		mappedIPs := util.MapIPs(zdb.IPs)
 		ip, ok := mappedIPs[cfg.ZdbConnectionType]
 		if !ok {
-			return fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
+			return "", fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
 		}
 		configBuilder.WriteString("\n\n[[meta.config.backends]]\n")
 		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", ip))
@@ -68,11 +69,12 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 
 	// Add data backends
 	configBuilder.WriteString("\n\n[[groups]]")
-	for _, zdb := range data {
+	for _, deployment := range meta {
+		zdb := deployment.Zdbs[0]
 		mappedIPs := util.MapIPs(zdb.IPs)
 		ip, ok := mappedIPs[cfg.ZdbConnectionType]
 		if !ok {
-			return fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
+			return "", fmt.Errorf("ZDB connection type '%s' not supported on node for zdb %s", cfg.ZdbConnectionType, zdb.Name)
 		}
 		configBuilder.WriteString("\n\n[[groups.backends]]\n")
 		configBuilder.WriteString(fmt.Sprintf("address = \"[%s]:9900\"\n", ip))
@@ -81,7 +83,7 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 	}
 	configBuilder.WriteString("\n")
 
-	return configBuilder.String()
+	return configBuilder.String(), nil
 }
 
 func keyFromMnemonic(mnemonic, password string) (string, error) {
