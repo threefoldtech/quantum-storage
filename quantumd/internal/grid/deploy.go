@@ -77,7 +77,10 @@ func DeployBackends(gridClient deployer.TFPluginClient, cfg *config.Config) ([]w
 		return nil, nil, errors.Wrap(err, "failed to deploy data ZDBs")
 	}
 
-	return metaDeployments, dataDeployments, nil
+	allMetaDeployments := append(existingMetaDeployments, metaDeployments...)
+	allDataDeployments := append(existingDataDeployments, dataDeployments...)
+
+	return allMetaDeployments, allDataDeployments, nil
 }
 
 // deployInBatches handles the entire lifecycle of deploying a group of ZDBs,

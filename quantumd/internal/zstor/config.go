@@ -69,7 +69,7 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 
 	// Add data backends
 	configBuilder.WriteString("\n\n[[groups]]")
-	for _, deployment := range meta {
+	for _, deployment := range data {
 		zdb := deployment.Zdbs[0]
 		mappedIPs := util.MapIPs(zdb.IPs)
 		ip, ok := mappedIPs[cfg.ZdbConnectionType]
