@@ -29,7 +29,7 @@ total_storage_size: "20GB"
 # total_storage_size is ignored.
 # data_size: "5GB"
 
-# Metadata backend size. This is typically much smaller than data backends.
+# Metadata backend size. 1G should be plenty for most deployments
 # meta_size: "1GB"
 
 # Zstor configuration
