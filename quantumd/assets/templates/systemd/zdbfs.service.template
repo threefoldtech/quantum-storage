@@ -4,10 +4,9 @@ After=network.target zstor.service
 
 [Service]
 PrivateMounts=no
-ReadWritePaths={{.ZdbRootPath}} /var/log
 ExecStart=/usr/local/bin/zdbfs \
-    {{.QsfsMountpoint}}
-    -o autons
+    {{.QsfsMountpoint}} \
+    -o autons \
     -o size={{.ZdbfsSize}}
 
 Restart=always
@@ -15,4 +14,3 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-
