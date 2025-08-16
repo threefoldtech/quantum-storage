@@ -81,6 +81,10 @@ func LoadConfig(path string) (*Config, error) {
 		}
 	}
 
+	if cfg.MetaSize == "" {
+		cfg.MetaSize = "1G"
+	}
+
 	if cfg.ZdbRotateTime == 0 {
 		cfg.ZdbRotateTime = cfg.RetryInterval
 	}
