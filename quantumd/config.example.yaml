@@ -1,16 +1,22 @@
 # Quantum Storage Daemon Configuration
+
+# These can also be set via NETWORK and MNEMONIC env vars
 network: main # dev, test, or main
 mnemonic: "" # Your ThreeFold mnemonic
 
 # Deployment configuration
-deployment_name: "" # Will be publicly visible
+deployment_name: "qsfs" # Will be publicly visible
 password: "" # Used along with mnemonic to encrypt data and protect zdbs
 
 # Backend configuration
-meta_nodes: [11, 13, 24, 2011] # List of node IDs for metadata ZDBs
-data_nodes: [11, 13, 24, 2011] # List of node IDs for data ZDBs
-# farms: [1, 2, 3] # Optional: List of farm IDs to automatically select nodes from
+farms: [1] # List of farm IDs to automatically select nodes from
 # exclude_nodes: [1001, 1002] # Optional: node IDs to exclude when selecting from farms
+
+# Some or all nodes can be specified manually. If no farms are specified, all
+# nodes must be listed here. If farms and nodes are both provided, additional
+# nodes will be selected from the farms as needed
+# meta_nodes: [11, 13, 24, 2011] # List of node IDs for metadata ZDBs
+# data_nodes: [11, 13, 24, 2011] # List of node IDs for data ZDBs
 
 # --- Storage Size Configuration ---
 # Option 1: Specify total desired usable storage.
@@ -24,7 +30,7 @@ total_storage_size: "20GB"
 # data_size: "5GB"
 
 # Metadata backend size. This is typically much smaller than data backends.
-meta_size: "1GB"
+# meta_size: "1GB"
 
 # Zstor configuration
 min_shards: 2
@@ -33,9 +39,9 @@ expected_shards: 4
 # zdb_data_size: "2G" # optional, size of the zdb data directory in MB or GB. defaults to 2560M
 
 # Paths
-zdb_root_path: "/data"
-qsfs_mountpoint: "/mnt/qsfs"
+# zdb_root_path: "/data"
+# qsfs_mountpoint: "/mnt/qsfs"
 
-# Daemon configuration
-retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)
-zdb_rotate_time: 15m # Time interval for rotating ZDB data files
+# # Daemon configuration
+# retry_interval: 10m # Interval for retrying failed uploads (e.g., 5m, 10m, 1h)
+# zdb_rotate_time: 15m # Time interval for rotating ZDB data files
