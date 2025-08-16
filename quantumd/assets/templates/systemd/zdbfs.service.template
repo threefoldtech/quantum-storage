@@ -3,17 +3,13 @@ Wants=network.target zstor.service
 After=network.target zstor.service
 
 [Service]
-ProtectHome=true
-ProtectSystem=true
+PrivateMounts=no
 ReadWritePaths={{.ZdbRootPath}} /var/log
 ExecStart=/usr/local/bin/zdbfs \
-  --backend zstor://{{.QsfsMountpoint}} \
-  --log-level info \
-  --cache-size 5120 \
-  --cache-shards 1024 \
-  --size {{.ZdbfsSize}} \
-  --zstor-socket /tmp/zstor.sock \
-  {{.QsfsMountpoint}}
+    {{.QsfsMountpoint}}
+    -o autons
+    -o size={{.ZdbfsSize}}
+
 Restart=always
 RestartSec=5
 
