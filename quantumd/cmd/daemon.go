@@ -238,6 +238,9 @@ func (rm *retryManager) start() {
 	log.Println("Starting retry manager...")
 	defer rm.uploadTracker.Close()
 
+	// Run once immediately, since the loop will start after one tick
+	rm.runRetryCycle()
+
 	ticker := time.NewTicker(rm.interval)
 	defer ticker.Stop()
 
