@@ -109,6 +109,7 @@ func runRestore() error {
 		RetryInterval:  cfg.RetryInterval,
 		DatabasePath:   cfg.DatabasePath,
 		ZdbDataSize:    cfg.ZdbDataSize,
+		ZdbfsSize:      cfg.ZdbfsSize,
 		MetaBackends:   []service.Backend{},
 		DataBackends:   []service.Backend{},
 	}
