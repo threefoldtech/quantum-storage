@@ -33,8 +33,7 @@ of the stored files. It also checks for any pending uploads.`,
 
 		dbPath := cfg.DatabasePath
 		if dbPath == "" {
-			// Fallback to default location if not specified
-			dbPath = "/data/uploaded_files.db"
+			dbPath = filepath.Join(cfg.ZdbRootPath, "uploaded_files.db")
 		}
 
 		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
