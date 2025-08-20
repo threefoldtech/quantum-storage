@@ -117,10 +117,11 @@ and deletes all related binaries from the system.`,
 }
 
 func removeFileIfExists(path string) error {
-	if _, err := os.Stat(path); err == nil {
+	if _, err := os.Lstat(path); err == nil {
 		fmt.Printf(" - Removing %s\n", path)
 		return os.Remove(path)
 	} else if !os.IsNotExist(err) {
+
 		return err
 	}
 	// File does not exist, which is fine.
