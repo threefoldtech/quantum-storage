@@ -56,6 +56,9 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 	// Add meta backends
 	for _, deployment := range meta {
 		zdb := deployment.Zdbs[0]
+		if len(zdb.IPs) == 0 {
+			return "", fmt.Errorf("Error parsing deployment info for zdb %s: no IPs found", zdb.Name)
+		}
 		mappedIPs := util.MapIPs(zdb.IPs)
 		ip, ok := mappedIPs[cfg.ZdbConnectionType]
 		if !ok {
@@ -71,6 +74,9 @@ key = "%s"`, cfg.MinShards, cfg.ExpectedShards, cfg.QsfsMountpoint, cfg.ZdbRootP
 	configBuilder.WriteString("\n\n[[groups]]")
 	for _, deployment := range data {
 		zdb := deployment.Zdbs[0]
+		if len(zdb.IPs) == 0 {
+			return "", fmt.Errorf("Error parsing deployment info for zdb %s: no IPs found", zdb.Name)
+		}
 		mappedIPs := util.MapIPs(zdb.IPs)
 		ip, ok := mappedIPs[cfg.ZdbConnectionType]
 		if !ok {
