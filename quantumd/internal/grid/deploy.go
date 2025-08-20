@@ -195,7 +195,14 @@ func deployInBatches(
 				continue
 			}
 
-			successfulDeployments = append(successfulDeployments, *dl)
+			// Reload the deployment from the grid to get all the details
+			reloadedDl, err := gridClient.State.LoadDeploymentFromGrid(ctx, dl.NodeID, dl.Name)
+			if err != nil {
+				fmt.Printf("warn: failed to reload deployment %s from grid: %v. It will be retried.\n", dl.Name, err)
+				continue // This will cause the loop to retry for this deployment
+			}
+
+			successfulDeployments = append(successfulDeployments, reloadedDl)
 			fmt.Printf("Successfully deployed and loaded %s ZDB of size %dGB on node %d\n", nodeType, sizeGB, dl.NodeID)
 		}
 
