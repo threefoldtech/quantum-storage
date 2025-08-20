@@ -120,7 +120,7 @@ func LoadExistingDeployments(gridClient *deployer.TFPluginClient, cfg *config.Co
 		name := contractInfo.DeploymentName
 		deploymentName, twinID, nodeType, nodeID, err := ParseZDBName(name)
 		if err != nil {
-			fmt.Printf("warn: skipping deployment '%s' (does not match expected zdb deployment name format)\n", name)
+			fmt.Printf("warn: skipping deployment '%s' (does not match expected name format)\n", name)
 			continue
 		}
 		if deploymentName != cfg.DeploymentName || twinID != uint64(gridClient.TwinID) {
