@@ -39,7 +39,7 @@ expected_shards: 4
 # zdb_data_size: "2G" # optional, size of the zdb data directory in MB or GB. defaults to 2560M
 
 # Paths
-# zdb_root_path: "/data"
+# zdb_root_path: "/opt/zdb"
 # qsfs_mountpoint: "/mnt/qsfs"
 
 # # Daemon configuration

@@ -101,6 +101,14 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.MaxDeploymentRetries = 5
 	}
 
+	if cfg.ZdbRootPath == "" {
+		cfg.ZdbRootPath = "/opt/zdb"
+	}
+
+	if cfg.QsfsMountpoint == "" {
+		cfg.QsfsMountpoint = "/mnt/qsfs"
+	}
+
 	if cfg.DeploymentName == "" {
 		return nil, fmt.Errorf("deployment_name is required in config")
 	}
