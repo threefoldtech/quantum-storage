@@ -52,25 +52,9 @@ With --local flag, sets up a complete local test environment with backend ZDBs.`
 	},
 }
 
-var startCmd = &cobra.Command{
-	Use:   "start [service]",
-	Short: "Start a single service",
-	Long:  `Starts a single QSFS service (zdb, zstor, zdbfs, quantumd).`,
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		serviceName := args[0]
-		if err := startService(serviceName); err != nil {
-			fmt.Printf("Error starting service %s: %v\n", serviceName, err)
-			os.Exit(1)
-		}
-		fmt.Printf("Service %s started successfully.\n", serviceName)
-	},
-}
-
 func init() {
 	setupCmd.Flags().BoolVarP(&localMode, "local", "l", false, "Setup local test environment with backend ZDBs")
 	rootCmd.AddCommand(setupCmd)
-	rootCmd.AddCommand(startCmd)
 }
 
 func SetupQSFS(isLocal bool) error {
@@ -180,13 +164,7 @@ func SetupQSFS(isLocal bool) error {
 	return nil
 }
 
-func startService(name string) error {
-	sm, err := service.NewServiceManager()
-	if err != nil {
-		return fmt.Errorf("failed to get service manager: %w", err)
-	}
-	return sm.StartService(name)
-}
+
 
 func generateLocalZstorConfig() error {
 	fmt.Println("Generating local zstor config...")

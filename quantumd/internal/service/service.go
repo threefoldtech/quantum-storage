@@ -161,7 +161,7 @@ WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1, zdbDataSize)
 
 		path := fmt.Sprintf("/etc/systemd/system/zdb-back%d.service", i+1)
 		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
+			return fmt.Errorf("failed to write service file %s: %%w", path, err)
 		}
 	}
 	return nil
@@ -174,7 +174,7 @@ func (z *ZinitManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
 	zinitDir := "/etc/zinit"
 
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
-		return fmt.Errorf("failed to create zinit directory: %w", err)
+		return fmt.Errorf("failed to create zinit directory: %%w", err)
 	}
 
 	for _, name := range ManagedServices {
@@ -250,7 +250,7 @@ func (z *ZinitManager) createLocalZinitBackends() error {
 
 		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
 		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %w", path, err)
+			return fmt.Errorf("failed to write service file %s: %%w", path, err)
 		}
 	}
 	return nil
@@ -272,17 +272,17 @@ func renderTemplate(destPath, templateName, serviceType string, cfg *Config) err
 	}
 	templateContent, err := TemplateAssets.ReadFile(templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to read embedded template %s: %w", templatePath, err)
+		return fmt.Errorf("failed to read embedded template %s: %%w", templatePath, err)
 	}
 
 	tmpl, err := template.New(templateName).Parse(string(templateContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse template %s: %w", templateName, err)
+		return fmt.Errorf("failed to parse template %s: %%w", templateName, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return fmt.Errorf("failed to execute template %s: %w", templateName, err)
+		return fmt.Errorf("failed to execute template %s: %%w", templateName, err)
 	}
 
 	return os.WriteFile(destPath, buf.Bytes(), 0644)
@@ -294,7 +294,61 @@ func Setup(cfg *Config, isLocal bool) error {
 		return err
 	}
 	if err := sm.CreateServiceFiles(cfg, isLocal); err != nil {
-		return fmt.Errorf("failed to create service files: %w", err)
+		return fmt.Errorf("failed to create service files: %%w", err)
 	}
 	return sm.DaemonReload()
+}
+
+func StartServiceByName(name string) error {
+	sm, err := NewServiceManager()
+	if err != nil {
+		return fmt.Errorf("failed to get service manager: %%w", err)
+	}
+	fmt.Printf("Starting %s...\n", name)
+	if err := sm.StartService(name); err != nil {
+		return fmt.Errorf("failed to start service %s: %%w", name, err)
+	}
+	fmt.Printf("Service %s started.\n", name)
+	return nil
+}
+
+func StartAllServices() {
+	fmt.Println("Starting all services...")
+	for _, s := range ManagedServices {
+		if err := StartServiceByName(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to start service %s: %%v\n", s, err)
+		}
+	}
+}
+
+func StopServiceByName(name string) error {
+	sm, err := NewServiceManager()
+	if err != nil {
+		return fmt.Errorf("failed to get service manager: %%w", err)
+	}
+
+	running, err := sm.ServiceIsRunning(name)
+	if err != nil {
+		return fmt.Errorf("failed to check status of service %s: %%w", name, err)
+	}
+
+	if running {
+		fmt.Printf("Stopping %s...\n", name)
+		if err := sm.StopService(name); err != nil {
+			return fmt.Errorf("failed to stop service %s: %%w", name, err)
+		}
+		fmt.Printf("Service %s stopped.\n", name)
+	} else {
+		fmt.Printf("Service %s is not running.\n", name)
+	}
+	return nil
+}
+
+func StopAllServices() {
+	fmt.Println("Stopping all services...")
+	for _, s := range ManagedServices {
+		if err := StopServiceByName(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to stop service %s: %%v\n", s, err)
+		}
+	}
 }
