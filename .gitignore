@@ -1,2 +1,8 @@
 **/vars.py
 **/.env
+
+# Rust
+zstor-metadata-decoder/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
