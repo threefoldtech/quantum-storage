@@ -60,6 +60,12 @@ var daemonCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize zstor client: %w", err)
 		}
 
+		// Initialize zstor metrics scraper
+		metricsScraper, err := zstor.NewMetricsScraper("/etc/zstor.toml")
+		if err != nil {
+			return fmt.Errorf("failed to initialize zstor metrics scraper: %w", err)
+		}
+
 		handler, err := hook.NewHandler(cfg.ZdbRootPath, uploadTracker, zstorClient)
 		if err != nil {
 			return fmt.Errorf("failed to initialize hook handler: %w", err)
@@ -73,6 +79,7 @@ var daemonCmd = &cobra.Command{
 		go handler.ListenAndServe()
 		go retryManager.start()
 		go startPrometheusServer(cfg.PrometheusPort)
+		go startMetricsScraper(metricsScraper)
 
 		select {}
 	},
@@ -432,4 +439,27 @@ func (rm *retryManager) sendMetrics() {
 	timestamp := float64(time.Now().Unix())
 	lastRetryRunTime.Set(timestamp)
 	log.Println("Updated last_retry_run_time metric.")
+}
+
+// startMetricsScraper starts the zstor metrics scraper that periodically fetches
+// backend connection status from the zstor prometheus endpoint
+func startMetricsScraper(scraper *zstor.MetricsScraper) {
+	log.Println("Starting zstor metrics scraper...")
+	
+	// Run once immediately
+	if err := scraper.ScrapeMetrics(); err != nil {
+		log.Printf("Failed to scrape zstor metrics: %v", err)
+	}
+
+	// Then run every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := scraper.ScrapeMetrics(); err != nil {
+			log.Printf("Failed to scrape zstor metrics: %v", err)
+		} else {
+			log.Println("Successfully scraped zstor metrics")
+		}
+	}
 }
