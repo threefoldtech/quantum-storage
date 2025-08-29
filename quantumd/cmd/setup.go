@@ -262,7 +262,12 @@ func getBinaryVersion(binaryPath string) (string, error) {
 				return cleanVersion(versionPart), nil
 			}
 		}
-	} else if strings.Contains(binaryPath, "zstor") {
+	} else if strings.Contains(binaryPath, "zstor") && !strings.Contains(binaryPath, "zstor-metadata-decoder") {
+		parts := strings.Fields(outputStr)
+		if len(parts) >= 2 {
+			return cleanVersion(strings.TrimPrefix(parts[1], "v")), nil
+		}
+	} else if strings.Contains(binaryPath, "zstor-metadata-decoder") {
 		parts := strings.Fields(outputStr)
 		if len(parts) >= 2 {
 			return cleanVersion(strings.TrimPrefix(parts[1], "v")), nil
@@ -294,10 +299,17 @@ func needsDownload(binaryName, expectedVersion string) (bool, error) {
 	return true, nil
 }
 func DownloadBinaries() error {
+	// Get quantumd version for metadata decoder
+	quantumdVersion := "0.4.1" // Default version
+	if version != "dev" && version != "" {
+		quantumdVersion = strings.TrimPrefix(version, "v")
+	}
+
 	binaries := map[string]string{
 		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
 		"zdb":   fmt.Sprintf("https://github.com/threefoldtech/0-db/releases/download/v%s/zdb-%s-linux-amd64-static", zdbVersion, zdbVersion),
 		"zstor": fmt.Sprintf("https://github.com/threefoldtech/0-stor_v2/releases/download/v%s/zstor_v2-x86_64-linux-musl", zstorVersion),
+		"zstor-metadata-decoder": fmt.Sprintf("https://github.com/threefoldtech/quantum-storage/releases/download/v%s/zstor-metadata-decoder_%s_linux_amd64", quantumdVersion, quantumdVersion),
 	}
 
 	for name, url := range binaries {
@@ -309,6 +321,8 @@ func DownloadBinaries() error {
 			expectedVersion = zdbVersion
 		case "zstor":
 			expectedVersion = zstorVersion
+		case "zstor-metadata-decoder":
+			expectedVersion = quantumdVersion
 		}
 
 		needsDL, err := needsDownload(name, expectedVersion)
