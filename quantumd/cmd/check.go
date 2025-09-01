@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
@@ -22,8 +21,8 @@ func init() {
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check for missing files and list uploaded files with their hashes.",
-	Long: `Queries the SQLite database to list all uploaded files, showing their
-database hash versus their current local hash. It helps in verifying the integrity
+	Long: `Queries zstor metadata to list all uploaded files, showing their
+remote hash versus their current local hash. It helps in verifying the integrity
 of the stored files. It also checks for any pending uploads.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadConfig(ConfigFile)
@@ -31,20 +30,17 @@ of the stored files. It also checks for any pending uploads.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		dbPath := cfg.DatabasePath
-		if dbPath == "" {
-			dbPath = filepath.Join(cfg.ZdbRootPath, "uploaded_files.db")
+		// Get all metadata from zstor once
+		allMetadata, err := zstor.GetAllMetadata(cfg.ZstorConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to get metadata: %w", err)
 		}
 
-		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			return fmt.Errorf("database file not found at %s", dbPath)
-		}
-
-		if err := checkAndPrintHashes(dbPath); err != nil {
+		if err := checkAndPrintHashes(allMetadata); err != nil {
 			return fmt.Errorf("error during hash check: %w", err)
 		}
 
-		if err := checkPendingUploads(cfg.ZdbRootPath, dbPath); err != nil {
+		if err := checkPendingUploads(cfg.ZdbRootPath, allMetadata); err != nil {
 			return fmt.Errorf("error during pending upload check: %w", err)
 		}
 
@@ -52,57 +48,58 @@ of the stored files. It also checks for any pending uploads.`,
 	},
 }
 
-func checkAndPrintHashes(dbPath string) error {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-	defer db.Close()
-
-	rows, err := db.Query("SELECT file_path, hash FROM uploaded_files ORDER BY file_path")
-	if err != nil {
-		return fmt.Errorf("failed to query uploaded files: %w", err)
-	}
-	defer rows.Close()
-
+func checkAndPrintHashes(allMetadata map[string]zstor.Metadata) error {
 	var (
-		filePath   string
-		dbHash     string
-		localHash  string
 		status     string
 		mismatches int
 		files      int
 		notFound   int
 	)
 
-	fmt.Printf("%-70s %-35s %-35s %-10s\n", "File Path", "Database Hash", "Local Hash", "Status")
+	fmt.Printf("%-70s %-35s %-35s %-10s\n", "File Path", "Remote Hash", "Local Hash", "Status")
 	fmt.Println(string(make([]byte, 150, 150)))
 
-	for rows.Next() {
+	// Process each file from metadata
+	for filePath, metadata := range allMetadata {
 		files++
-		if err := rows.Scan(&filePath, &dbHash); err != nil {
-			return fmt.Errorf("failed to scan row: %w", err)
-		}
-
+		
+		// Convert remote hash to hex string for comparison
+		dbHash := metadata.Checksum
+		
+		// Check if local file exists
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			localHash = "Not Found"
 			status = "Missing"
 			notFound++
+			
+			dbHashStr := hex.EncodeToString([]byte(dbHash))
+			fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, "Not Found", status)
 		} else {
-			localHash = zstor.GetLocalHash(filePath)
-			if dbHash == localHash {
+			// Calculate local hash
+			localHashStr := zstor.GetLocalHash(filePath)
+			localHash, err := hex.DecodeString(localHashStr)
+			if err != nil {
+				log.Printf("Failed to decode local hash for %s: %v", filePath, err)
+				status = "Error"
+				
+				dbHashStr := hex.EncodeToString([]byte(dbHash))
+				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, "Error", status)
+			} else if string(dbHash) == string(localHash) {
 				status = "OK"
+				
+				dbHashStr := hex.EncodeToString([]byte(dbHash))
+				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, localHashStr, status)
 			} else {
 				status = "Mismatch"
 				mismatches++
+				
+				dbHashStr := hex.EncodeToString([]byte(dbHash))
+				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, localHashStr, status)
 			}
 		}
-
-		fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHash, localHash, status)
 	}
 
 	if files == 0 {
-		fmt.Println("No uploaded files found in the database.")
+		fmt.Println("No uploaded files found in the metadata.")
 	}
 
 	fmt.Println()
@@ -114,20 +111,11 @@ func checkAndPrintHashes(dbPath string) error {
 	return nil
 }
 
-func checkPendingUploads(zdbRootPath, dbPath string) error {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to open database for pending check: %w", err)
-	}
-	defer db.Close()
-
-	isUploaded := func(filePath string) (bool, error) {
-		var count int
-		err := db.QueryRow("SELECT COUNT(*) FROM uploaded_files WHERE file_path = ?", filePath).Scan(&count)
-		if err != nil {
-			return false, err
-		}
-		return count > 0, nil
+func checkPendingUploads(zdbRootPath string, allMetadata map[string]zstor.Metadata) error {
+	// Create a map for quick lookup
+	uploadedFiles := make(map[string]bool)
+	for filePath := range allMetadata {
+		uploadedFiles[filePath] = true
 	}
 
 	var pendingUploads []string
@@ -163,12 +151,8 @@ func checkPendingUploads(zdbRootPath, dbPath string) error {
 		// All files except the last one (highest number) should have been uploaded.
 		filesToCheck := files[:len(files)-1]
 		for _, file := range filesToCheck {
-			uploaded, err := isUploaded(file)
-			if err != nil {
-				log.Printf("Failed to check upload status for %s: %v", file, err)
-				continue
-			}
-			if !uploaded {
+			// Check if file exists in metadata (meaning it's uploaded)
+			if !uploadedFiles[file] {
 				pendingUploads = append(pendingUploads, file)
 			}
 		}
