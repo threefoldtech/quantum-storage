@@ -14,8 +14,14 @@ var statusCmd = &cobra.Command{
 	Short: "Show the current status of zdb backends",
 	Long:  `This command shows the current status of all zdb backends by querying the zstor prometheus endpoint.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Load config to get zstor config path
+		cfg, err := loadDaemonConfig(cmd)
+		if err != nil {
+			return err
+		}
+		
 		// Initialize zstor metrics scraper
-		metricsScraper, err := zstor.NewMetricsScraper("/etc/zstor.toml")
+		metricsScraper, err := zstor.NewMetricsScraper(cfg.ZstorConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize zstor metrics scraper: %w", err)
 		}

@@ -82,6 +82,11 @@ The command will retry failed deployments on new nodes from the specified farms 
 			os.Exit(1)
 		}
 
+		// Use zstor config path from main config as default if flag is not set
+		if ConfigOutPath == "" {
+			ConfigOutPath = cfg.ZstorConfigPath
+		}
+		
 		if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
 			fmt.Printf("Error writing config file: %v\n", err)
 			os.Exit(1)
@@ -90,7 +95,7 @@ The command will retry failed deployments on new nodes from the specified farms 
 }
 
 func init() {
-	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor.toml", "Path to write generated zstor config")
+	deployCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "", "Path to write generated zstor config")
 	deployCmd.Flags().BoolP("query", "q", false, "Query existing deployments instead of deploying new ones")
 	rootCmd.AddCommand(deployCmd)
 }

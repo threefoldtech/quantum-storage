@@ -107,26 +107,27 @@ func SetupQSFS(isLocal bool) error {
 
 	// The service config needs to be converted to the one in the service package
 	serviceCfg := &service.Config{
-		Network:        cfg.Network,
-		Mnemonic:       cfg.Mnemonic,
-		DeploymentName: cfg.DeploymentName,
-		MetaNodes:      cfg.MetaNodes,
-		DataNodes:      cfg.DataNodes,
-		Password:       cfg.Password,
-		MetaSizeGb:     cfg.MetaSizeGb,
-		DataSizeGb:     cfg.DataSizeGb,
-		MinShards:      cfg.MinShards,
-		ExpectedShards: cfg.ExpectedShards,
-		ZdbRootPath:    cfg.ZdbRootPath,
-		QsfsMountpoint: cfg.QsfsMountpoint,
-		CachePath:      cfg.CachePath,
-		RetryInterval:  cfg.RetryInterval,
-		DatabasePath:   cfg.DatabasePath,
-		ZdbRotateTime:  cfg.ZdbRotateTime,
-		ZdbDataSize:    cfg.ZdbDataSize,
-		ZdbfsSize:      cfg.ZdbfsSize,
-		MetaBackends:   []service.Backend{},
-		DataBackends:   []service.Backend{},
+		Network:         cfg.Network,
+		Mnemonic:        cfg.Mnemonic,
+		DeploymentName:  cfg.DeploymentName,
+		MetaNodes:       cfg.MetaNodes,
+		DataNodes:       cfg.DataNodes,
+		Password:        cfg.Password,
+		MetaSizeGb:      cfg.MetaSizeGb,
+		DataSizeGb:      cfg.DataSizeGb,
+		MinShards:       cfg.MinShards,
+		ExpectedShards:  cfg.ExpectedShards,
+		ZdbRootPath:     cfg.ZdbRootPath,
+		QsfsMountpoint:  cfg.QsfsMountpoint,
+		CachePath:       cfg.CachePath,
+		RetryInterval:   cfg.RetryInterval,
+		DatabasePath:    cfg.DatabasePath,
+		ZdbRotateTime:   cfg.ZdbRotateTime,
+		ZdbDataSize:     cfg.ZdbDataSize,
+		ZdbfsSize:       cfg.ZdbfsSize,
+		ZstorConfigPath: cfg.ZstorConfigPath,
+		MetaBackends:    []service.Backend{},
+		DataBackends:    []service.Backend{},
 	}
 
 	if err := service.Setup(serviceCfg, isLocal); err != nil {
@@ -196,7 +197,7 @@ func generateLocalZstorConfig() error {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return os.WriteFile("/etc/zstor.toml", tpl.Bytes(), 0644)
+	return os.WriteFile(cfg.ZstorConfigPath, tpl.Bytes(), 0644)
 }
 
 func initNamespaces() error {

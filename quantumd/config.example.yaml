@@ -37,6 +37,7 @@ min_shards: 2
 expected_shards: 4
 # zdb_connection_type: "mycelium" # optional, can be "mycelium", "ipv6", "ygg". defaults to mycelium
 # zdb_data_size: "2G" # optional, size of the zdb data directory in MB or GB. defaults to 2560M
+# zstor_config_path: "/etc/zstor.toml" # optional, path to zstor config file. defaults to /etc/zstor.toml
 
 # Paths
 # zdb_root_path: "/opt/zdb"

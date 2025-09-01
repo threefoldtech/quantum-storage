@@ -56,10 +56,15 @@ It essentially runs 'deploy' followed by 'setup'.`,
 				os.Exit(1)
 			}
 
-			if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
-				fmt.Printf("Error writing config file: %v\n", err)
-				os.Exit(1)
-			}
+			// Use zstor config path from main config as default if flag is not set
+		if ConfigOutPath == "" {
+			ConfigOutPath = cfg.ZstorConfigPath
+		}
+		
+		if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
+			fmt.Printf("Error writing config file: %v\n", err)
+			os.Exit(1)
+		}
 		}
 
 		fmt.Println("Setting up QSFS components...")
@@ -76,5 +81,5 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().BoolP("local", "l", false, "Setup a local test environment")
 	initCmd.Flags().BoolP("destroy", "d", false, "Destroy existing deployments before initializing")
-	initCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "/etc/zstor.toml", "Path to write generated zstor config")
+	initCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "", "Path to write generated zstor config")
 }

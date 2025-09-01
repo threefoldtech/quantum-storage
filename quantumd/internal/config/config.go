@@ -33,6 +33,7 @@ type Config struct {
 	ZdbRotateTime        time.Duration `yaml:"zdb_rotate_time"`
 	ZdbConnectionType    string        `yaml:"zdb_connection_type"`
 	ZdbDataSize          string        `yaml:"zdb_data_size"`
+	ZstorConfigPath      string        `yaml:"zstor_config_path"`
 	PrometheusPort       int           `yaml:"prometheus_port"`
 	MaxDeploymentRetries int           `yaml:"max_deployment_retries"`
 
@@ -107,6 +108,10 @@ func LoadConfig(path string) (*Config, error) {
 
 	if cfg.QsfsMountpoint == "" {
 		cfg.QsfsMountpoint = "/mnt/qsfs"
+	}
+
+	if cfg.ZstorConfigPath == "" {
+		cfg.ZstorConfigPath = "/etc/zstor.toml"
 	}
 
 	if cfg.DeploymentName == "" {

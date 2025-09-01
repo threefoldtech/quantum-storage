@@ -55,13 +55,13 @@ var daemonCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize upload tracker: %w", err)
 		}
 
-		zstorClient, err := zstor.NewClient("/usr/local/bin/zstor", "/etc/zstor.toml")
+		zstorClient, err := zstor.NewClient("/usr/local/bin/zstor", cfg.ZstorConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize zstor client: %w", err)
 		}
 
 		// Initialize zstor metrics scraper
-		metricsScraper, err := zstor.NewMetricsScraper("/etc/zstor.toml")
+		metricsScraper, err := zstor.NewMetricsScraper(cfg.ZstorConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize zstor metrics scraper: %w", err)
 		}
