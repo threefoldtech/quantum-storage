@@ -1,6 +1,7 @@
 package zstor
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -8,6 +9,30 @@ import (
 
 // Checksum represents a checksum array.
 type Checksum []byte
+
+// UnmarshalJSON implements json.Unmarshaler interface for Checksum.
+// It expects a hex string and converts it to a byte slice.
+func (c *Checksum) UnmarshalJSON(data []byte) error {
+	// Remove quotes from the JSON string
+	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
+		data = data[1 : len(data)-1]
+	}
+
+	// Convert hex string to bytes
+	bytes, err := hex.DecodeString(string(data))
+	if err != nil {
+		return err
+	}
+
+	*c = bytes
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler interface for Checksum.
+// It converts the byte slice to a hex string.
+func (c Checksum) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hex.EncodeToString(c))
+}
 
 // Encryption represents the encryption details.
 type Encryption struct {
@@ -58,4 +83,20 @@ func GetMetadata(configPath, filePath string) (*Metadata, error) {
 	}
 
 	return &metadata, nil
+}
+
+// GetAllMetadata fetches and parses metadata for all files using zstor-metadata-decoder.
+func GetAllMetadata(configPath string) (map[string]Metadata, error) {
+	cmd := exec.Command("./zstor-metadata-decoder", "--config", configPath, "--all")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute zstor-metadata-decoder: %w", err)
+	}
+
+	var allMetadata map[string]Metadata
+	if err := json.Unmarshal(output, &allMetadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal all metadata: %w", err)
+	}
+
+	return allMetadata, nil
 }
