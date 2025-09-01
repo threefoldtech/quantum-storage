@@ -81,5 +81,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn metadata_to_json(meta: &MetaData) -> Value {
-    serde_json::to_value(meta).unwrap_or_else(|_| serde_json::Value::Null)
+    // Convert the metadata to JSON and then manually process it to hex encode all checksums
+    let mut json_value = serde_json::to_value(meta).unwrap_or_else(|_| serde_json::Value::Null);
+
+    // Process checksums recursively in the JSON structure
+    process_checksums(&mut json_value);
+
+    json_value
+}
+
+fn process_checksums(value: &mut Value) {
+    match value {
+        Value::Object(obj) => {
+            // Check if this object has a checksum field
+            if let Some(checksum_value) = obj.get("checksum") {
+                if let Some(checksum_array) = checksum_value.as_array() {
+                    let hex_string: String = checksum_array
+                        .iter()
+                        .filter_map(|v| v.as_u64())
+                        .map(|b| format!("{:02x}", b))
+                        .collect();
+                    
+                    obj.insert("checksum".to_string(), Value::String(hex_string));
+                }
+            }
+            
+            // Process all other fields recursively
+            for (_, v) in obj.iter_mut() {
+                process_checksums(v);
+            }
+        }
+        Value::Array(arr) => {
+            // Process all elements in the array recursively
+            for v in arr.iter_mut() {
+                process_checksums(v);
+            }
+        }
+        _ => {}
+    }
 }
