@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -19,11 +18,6 @@ type BackendStatus struct {
 	Namespace   string
 	IsAlive     bool
 	LastSeen    time.Time
-}
-
-// ZstorConfig represents the structure of the zstor TOML config file
-type ZstorConfig struct {
-	PrometheusPort int `toml:"prometheus_port"`
 }
 
 // MetricsScraper handles scraping and storing zstor backend status metrics
@@ -68,8 +62,8 @@ func NewMetricsScraper(configPath string) (*MetricsScraper, error) {
 
 // GetPrometheusPort extracts the prometheus port from the zstor config file
 func (ms *MetricsScraper) GetPrometheusPort() (int, error) {
-	var config ZstorConfig
-	if _, err := toml.DecodeFile(ms.configPath, &config); err != nil {
+	config, err := LoadConfig(ms.configPath)
+	if err != nil {
 		return 0, fmt.Errorf("failed to parse zstor config: %w", err)
 	}
 
