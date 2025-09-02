@@ -53,25 +53,25 @@ type Key struct {
 
 // Shard represents a shard's metadata.
 type Shard struct {
-	Checksum  Checksum `json:"checksum"`
-	CI        CI       `json:"ci"`
-	Keys      []Key    `json:"keys"`
-	ShardIdx  int      `json:"shard_idx"`
+	Checksum Checksum `json:"checksum"`
+	CI       CI       `json:"ci"`
+	Keys     []Key    `json:"keys"`
+	ShardIdx int      `json:"shard_idx"`
 }
 
 // Metadata represents the full metadata structure.
 type Metadata struct {
-	Checksum         Checksum    `json:"checksum"`
-	Compression      string      `json:"compression"`
-	DataShards       int         `json:"data_shards"`
-	DisposableShards int         `json:"disposable_shards"`
-	Encryption       Encryption  `json:"encryption"`
-	Shards           []Shard     `json:"shards"`
+	Checksum         Checksum   `json:"checksum"`
+	Compression      string     `json:"compression"`
+	DataShards       int        `json:"data_shards"`
+	DisposableShards int        `json:"disposable_shards"`
+	Encryption       Encryption `json:"encryption"`
+	Shards           []Shard    `json:"shards"`
 }
 
 // GetMetadata fetches and parses metadata for a given file using zstor-metadata-decoder.
 func GetMetadata(configPath, filePath string) (*Metadata, error) {
-	cmd := exec.Command("./zstor-metadata-decoder", "--config", configPath, "--file", filePath)
+	cmd := exec.Command("/usr/local/bin/zstor-metadata-decoder", "--config", configPath, "--file", filePath)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute zstor-metadata-decoder: %w", err)
@@ -87,7 +87,7 @@ func GetMetadata(configPath, filePath string) (*Metadata, error) {
 
 // GetAllMetadata fetches and parses metadata for all files using zstor-metadata-decoder.
 func GetAllMetadata(configPath string) (map[string]Metadata, error) {
-	cmd := exec.Command("./zstor-metadata-decoder", "--config", configPath, "--all")
+	cmd := exec.Command("/usr/local/bin/zstor-metadata-decoder", "--config", configPath, "--all")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute zstor-metadata-decoder: %w", err)
