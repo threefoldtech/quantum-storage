@@ -91,7 +91,6 @@ func (c *Client) StoreBatch(files []string, originalDir string) error {
 	return nil
 }
 
-
 // Check retrieves the remote hash of a file.
 func (c *Client) Check(filePath string) (string, error) {
 	cmd := exec.Command(c.BinaryPath, "-c", c.ConfigPath, "check", "--file", filePath)
@@ -148,6 +147,24 @@ func GetLocalHash(file string) string {
 
 	if _, err := io.Copy(h, f); err != nil {
 		log.Printf("failed to hash file %s: %v", file, err)
+		return ""
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// GetPathHash computes the BLAKE2b-128 hash of a path. These are used by zstor
+// when storing metadata, whereas the paths themselves are not stored
+func GetPathHash(path string) string {
+	h, err := blake2b.New(16, nil)
+	if err != nil {
+		log.Printf("failed to create blake2b hash: %v", err)
+		return ""
+	}
+
+	_, err = h.Write([]byte(path))
+	if err != nil {
+		log.Printf("failed to hash path %s: %v", path, err)
 		return ""
 	}
 
