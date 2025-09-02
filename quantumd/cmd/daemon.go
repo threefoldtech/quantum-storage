@@ -267,7 +267,7 @@ func (rm *retryManager) runRetryCycle() {
 	}
 
 	for _, ns := range namespaces {
-		if !ns.IsDir() || ns.Name() == "zdbfs-temp" {
+		if !ns.IsDir() || ns.Name() == "zdbfs-temp" || ns.Name() == "default" {
 			continue
 		}
 		rm.processNamespace(ns.Name())
@@ -445,7 +445,7 @@ func (rm *retryManager) sendMetrics() {
 // backend connection status from the zstor prometheus endpoint
 func startMetricsScraper(scraper *zstor.MetricsScraper) {
 	log.Println("Starting zstor metrics scraper...")
-	
+
 	// Run once immediately
 	if err := scraper.ScrapeMetrics(); err != nil {
 		log.Printf("Failed to scrape zstor metrics: %v", err)

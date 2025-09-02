@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"sort"
-	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
@@ -36,7 +35,7 @@ of the stored files. It also checks for any pending uploads.`,
 			return fmt.Errorf("failed to get metadata: %w", err)
 		}
 
-		if err := checkAndPrintHashes(allMetadata); err != nil {
+		if err := checkAndPrintHashes(allMetadata, cfg.ZdbRootPath); err != nil {
 			return fmt.Errorf("error during hash check: %w", err)
 		}
 
@@ -48,7 +47,7 @@ of the stored files. It also checks for any pending uploads.`,
 	},
 }
 
-func checkAndPrintHashes(allMetadata map[string]zstor.Metadata) error {
+func checkAndPrintHashes(allMetadata map[string]zstor.Metadata, zdbRootPath string) error {
 	var (
 		status     string
 		mismatches int
@@ -59,43 +58,81 @@ func checkAndPrintHashes(allMetadata map[string]zstor.Metadata) error {
 	fmt.Printf("%-70s %-35s %-35s %-10s\n", "File Path", "Remote Hash", "Local Hash", "Status")
 	fmt.Println(string(make([]byte, 150, 150)))
 
+	// Create a map of local file hashes to their actual paths
+	localFiles := make(map[string]string)
+
+	// Get all eligible files for upload
+	eligibleFiles, err := util.GetEligibleZdbFiles(zdbRootPath)
+	if err != nil {
+		return fmt.Errorf("failed to get eligible files: %w", err)
+	}
+
+	// Hash the paths of eligible files
+	for _, path := range eligibleFiles {
+		// Hash the file path using the same method as zstor
+		hashedPath := zstor.GetPathHash(path)
+		localFiles[hashedPath] = path
+	}
+
 	// Process each file from metadata
-	for filePath, metadata := range allMetadata {
+	for zstorPath, metadata := range allMetadata {
 		files++
-		
+
+		// Extract the hash part from the zstor path (/zstor-meta/meta/{hash})
+		parts := strings.Split(zstorPath, "/")
+		if len(parts) < 3 {
+			log.Printf("Unexpected zstor path format: %s", zstorPath)
+			continue
+		}
+		fileHash := parts[len(parts)-1]
+
+		// Find the corresponding local file path
+		localPath, exists := localFiles[fileHash]
+		if !exists {
+			// Try to find if there's a local file with this exact path
+			if _, err := os.Stat(zstorPath); err == nil {
+				localPath = zstorPath
+			} else {
+				localPath = "Unknown (hash: " + fileHash + ")"
+			}
+		}
+
 		// Convert remote hash to hex string for comparison
 		dbHash := metadata.Checksum
-		
+
 		// Check if local file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		var actualLocalPath string
+		if strings.HasPrefix(localPath, "Unknown") {
 			status = "Missing"
 			notFound++
-			
-			dbHashStr := hex.EncodeToString([]byte(dbHash))
-			fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, "Not Found", status)
+			actualLocalPath = localPath
+		} else if _, err := os.Stat(localPath); os.IsNotExist(err) {
+			status = "Missing"
+			notFound++
+			actualLocalPath = localPath
 		} else {
-			// Calculate local hash
-			localHashStr := zstor.GetLocalHash(filePath)
+			actualLocalPath = localPath
+			// Calculate local hash of the actual file content
+			localHashStr := zstor.GetLocalHash(localPath)
 			localHash, err := hex.DecodeString(localHashStr)
 			if err != nil {
-				log.Printf("Failed to decode local hash for %s: %v", filePath, err)
+				log.Printf("Failed to decode local hash for %s: %v", localPath, err)
 				status = "Error"
-				
-				dbHashStr := hex.EncodeToString([]byte(dbHash))
-				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, "Error", status)
 			} else if string(dbHash) == string(localHash) {
 				status = "OK"
-				
-				dbHashStr := hex.EncodeToString([]byte(dbHash))
-				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, localHashStr, status)
 			} else {
 				status = "Mismatch"
 				mismatches++
-				
-				dbHashStr := hex.EncodeToString([]byte(dbHash))
-				fmt.Printf("%-70s %-35s %-35s %-10s\n", filePath, dbHashStr, localHashStr, status)
 			}
 		}
+
+		dbHashStr := hex.EncodeToString([]byte(dbHash))
+		localHashDisplay := "Not Found"
+		if status != "Missing" && !strings.HasPrefix(actualLocalPath, "Unknown") {
+			localHashDisplay = zstor.GetLocalHash(actualLocalPath)
+		}
+
+		fmt.Printf("%-70s %-35s %-35s %-10s\n", actualLocalPath, dbHashStr, localHashDisplay, status)
 	}
 
 	if files == 0 {
@@ -112,49 +149,30 @@ func checkAndPrintHashes(allMetadata map[string]zstor.Metadata) error {
 }
 
 func checkPendingUploads(zdbRootPath string, allMetadata map[string]zstor.Metadata) error {
-	// Create a map for quick lookup
-	uploadedFiles := make(map[string]bool)
-	for filePath := range allMetadata {
-		uploadedFiles[filePath] = true
+	// Create a map for quick lookup of file hashes from metadata
+	uploadedFileHashes := make(map[string]bool)
+	for zstorPath := range allMetadata {
+		// Extract the hash part from the zstor path (/zstor-meta/meta/{hash})
+		parts := strings.Split(zstorPath, "/")
+		if len(parts) >= 3 {
+			fileHash := parts[len(parts)-1]
+			uploadedFileHashes[fileHash] = true
+		}
+	}
+
+	// Get all eligible files for upload
+	eligibleFiles, err := util.GetEligibleZdbFiles(zdbRootPath)
+	if err != nil {
+		return fmt.Errorf("failed to get eligible files: %w", err)
 	}
 
 	var pendingUploads []string
-	zstorDataPath := filepath.Join(zdbRootPath, "data")
-
-	namespaces, err := os.ReadDir(zstorDataPath)
-	if err != nil {
-		return fmt.Errorf("failed to read zstor data dir: %w", err)
-	}
-
-	for _, ns := range namespaces {
-		if !ns.IsDir() || ns.Name() == "zdbfs-temp" {
-			continue
-		}
-
-		nsPath := filepath.Join(zstorDataPath, ns.Name())
-		files, err := filepath.Glob(filepath.Join(nsPath, "d*"))
-		if err != nil {
-			log.Printf("Failed to list data files in %s: %v", nsPath, err)
-			continue
-		}
-
-		if len(files) <= 1 {
-			continue
-		}
-
-		sort.Slice(files, func(i, j int) bool {
-			numI, _ := strconv.Atoi(filepath.Base(files[i])[1:])
-			numJ, _ := strconv.Atoi(filepath.Base(files[j])[1:])
-			return numI < numJ
-		})
-
-		// All files except the last one (highest number) should have been uploaded.
-		filesToCheck := files[:len(files)-1]
-		for _, file := range filesToCheck {
-			// Check if file exists in metadata (meaning it's uploaded)
-			if !uploadedFiles[file] {
-				pendingUploads = append(pendingUploads, file)
-			}
+	for _, file := range eligibleFiles {
+		// Hash the local file path to check against metadata
+		fileHash := zstor.GetLocalHash(file)
+		// Check if file exists in metadata (meaning it's uploaded)
+		if !uploadedFileHashes[fileHash] {
+			pendingUploads = append(pendingUploads, file)
 		}
 	}
 

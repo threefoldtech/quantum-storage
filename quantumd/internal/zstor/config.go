@@ -29,7 +29,7 @@ func GenerateRemoteConfig(cfg *config.Config, meta, data []workloads.Deployment)
 expected_shards = %d
 redundant_groups = 0
 redundant_nodes = 0
-root = "/"
+root = ""
 zdbfs_mountpoint = "%s"
 socket = "/tmp/zstor.sock"
 prometheus_port = 9200
