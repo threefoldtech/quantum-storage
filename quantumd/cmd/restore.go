@@ -37,7 +37,6 @@ necessary configuration, sets up the local services, and recovers the data.`,
 
 func init() {
 	rootCmd.AddCommand(restoreCmd)
-	restoreCmd.Flags().StringVarP(&ConfigOutPath, "out", "o", "", "Path to write generated zstor config")
 }
 
 func runRestore() error {
@@ -80,13 +79,7 @@ func runRestore() error {
 		return errors.Wrap(err, "failed to generate remote config")
 	}
 
-	// Write config file
-	// Use zstor config path from main config as default if flag is not set
-	if ConfigOutPath == "" {
-		ConfigOutPath = cfg.ZstorConfigPath
-	}
-	
-	if err := os.WriteFile(ConfigOutPath, []byte(zstorConfig), 0644); err != nil {
+	if err := os.WriteFile(cfg.ZstorConfigPath, []byte(zstorConfig), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -159,7 +152,7 @@ func runRestore() error {
 	}()
 
 	// Wait for services to be ready
-	if err := waitForServices(); err != nil {
+	if err := waitForServices(cfg); err != nil {
 		fmt.Printf("zdb command output:\n%s\n", out.String())
 		return errors.Wrap(err, "services did not start in time")
 	}
@@ -189,7 +182,7 @@ func runRestore() error {
 	return nil
 }
 
-func waitForServices() error {
+func waitForServices(cfg *config.Config) error {
 	fmt.Println("Waiting for services to initialize...")
 	timeout := time.After(30 * time.Second)
 	tick := time.NewTicker(1 * time.Second)
@@ -217,15 +210,8 @@ func waitForServices() error {
 
 			// Check for zstor
 			zstorReady := false
-			// Use configured path or flag value
-			configPath := ConfigOutPath
-			if configPath == "" {
-				cfg, _ := config.LoadConfig(ConfigFile)
-				if cfg != nil {
-					configPath = cfg.ZstorConfigPath
-				}
-			}
-			cmdZstor := exec.Command("zstor", "-c", configPath, "test")
+
+			cmdZstor := exec.Command("zstor", "-c", cfg.ZstorConfigPath, "test")
 			if err := cmdZstor.Run(); err == nil {
 				zstorReady = true
 			}
@@ -241,15 +227,7 @@ func waitForServices() error {
 func recoverData(cfg *config.Config) error {
 	// This function implements the logic from the recover.sh script.
 	zstorCmd := func(args ...string) error {
-		// Use configured path or flag value
-		configPath := ConfigOutPath
-		if configPath == "" {
-			cfg, _ := config.LoadConfig(ConfigFile)
-			if cfg != nil {
-				configPath = cfg.ZstorConfigPath
-			}
-		}
-		cmdArgs := append([]string{"-c", configPath}, args...)
+		cmdArgs := append([]string{"-c", cfg.ZstorConfigPath}, args...)
 		cmd := exec.Command("zstor", cmdArgs...)
 		fmt.Printf("Running: %s\n", cmd.String())
 		output, err := cmd.CombinedOutput()

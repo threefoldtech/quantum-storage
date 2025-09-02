@@ -43,8 +43,7 @@ func init() {
 }
 
 var (
-	ConfigOutPath string
-	ConfigFile    string
+	ConfigFile string
 	// Version information will be set during build
 	version = "dev"
 	commit  = ""
