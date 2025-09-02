@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-	"time"
+
+	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 )
 
 // ServiceManager defines the interface for managing system services.
 type ServiceManager interface {
-	CreateServiceFiles(cfg *Config, isLocal bool) error
+	CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error
 	StartService(name string) error
 	EnableService(name string) error
 	DisableService(name string) error
@@ -26,37 +29,6 @@ type ServiceManager interface {
 
 // ManagedServices is the list of services quantumd manages
 var ManagedServices = []string{"zdb", "zstor", "zdbfs", "quantumd"}
-
-// Config mirrors the fields from cmd.Config needed for templates.
-type Config struct {
-	Network        string        `yaml:"network"`
-	Mnemonic       string        `yaml:"mnemonic"`
-	DeploymentName string        `yaml:"deployment_name"`
-	MetaNodes      []uint32      `yaml:"meta_nodes"`
-	DataNodes      []uint32      `yaml:"data_nodes"`
-	Password       string        `yaml:"password"`
-	MetaSizeGb     int           `yaml:"meta_size_gb"`
-	DataSizeGb     int           `yaml:"data_size_gb"`
-	MinShards      int           `yaml:"min_shards"`
-	ExpectedShards int           `yaml:"expected_shards"`
-	ZdbRootPath    string        `yaml:"zdb_root_path"`
-	QsfsMountpoint string        `yaml:"qsfs_mountpoint"`
-	CachePath      string        `yaml:"cache_path"`
-	RetryInterval  time.Duration `yaml:"retry_interval"`
-	DatabasePath   string        `yaml:"database_path"`
-	ZdbRotateTime  time.Duration `yaml:"zdb_rotate_time"`
-	ZdbDataSize    string        `yaml:"zdb_data_size"`
-	ZdbfsSize      string        `yaml:"zdbfs_size"`
-	ZstorConfigPath string       `yaml:"zstor_config_path"`
-	MetaBackends   []Backend     `yaml:"-"`
-	DataBackends   []Backend     `yaml:"-"`
-}
-
-type Backend struct {
-	Address   string
-	Namespace string
-	Password  string
-}
 
 var (
 	// TemplateAssets should be populated by the calling package
@@ -81,13 +53,22 @@ func NewServiceManager() (ServiceManager, error) {
 // SystemdManager implements ServiceManager for systemd.
 type SystemdManager struct{}
 
-func (s *SystemdManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
+func (s *SystemdManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
+	// Convert grid deployments to service backends for templates
+	serviceMetaBackends := convertDeploymentsToBackends(cfg, metaBackends)
+	serviceDataBackends := convertDeploymentsToBackends(cfg, dataBackends)
+	
+	// Create a copy of the config with backends for template rendering
+	cfgWithBackends := *cfg
+	cfgWithBackends.MetaBackends = serviceMetaBackends
+	cfgWithBackends.DataBackends = serviceDataBackends
+	
 	for _, name := range ManagedServices {
 		err := renderTemplate(
 			fmt.Sprintf("/etc/systemd/system/%s.service", name),
 			fmt.Sprintf("%s.service.template", name),
 			"systemd",
-			cfg,
+			&cfgWithBackends,
 		)
 		if err != nil {
 			return err
@@ -97,6 +78,31 @@ func (s *SystemdManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
 		return s.createLocalSystemdBackends(cfg.ZdbDataSize)
 	}
 	return nil
+}
+
+// convertDeploymentsToBackends converts grid deployments to service backends
+func convertDeploymentsToBackends(cfg *config.Config, deployments []workloads.Deployment) []config.Backend {
+	var backends []config.Backend
+	for _, deployment := range deployments {
+		if len(deployment.Zdbs) == 0 {
+			continue
+		}
+		zdb := deployment.Zdbs[0]
+		if len(zdb.IPs) == 0 {
+			continue
+		}
+		mappedIPs := util.MapIPs(zdb.IPs)
+		ip, ok := mappedIPs[cfg.ZdbConnectionType]
+		if !ok {
+			continue
+		}
+		backends = append(backends, config.Backend{
+			Address:   fmt.Sprintf("[%s]:9900", ip),
+			Namespace: zdb.Namespace,
+			Password:  cfg.Password,
+		})
+	}
+	return backends
 }
 
 func (s *SystemdManager) StartService(name string) error {
@@ -171,19 +177,28 @@ WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1, zdbDataSize)
 // ZinitManager implements ServiceManager for zinit.
 type ZinitManager struct{}
 
-func (z *ZinitManager) CreateServiceFiles(cfg *Config, isLocal bool) error {
+func (z *ZinitManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
 	zinitDir := "/etc/zinit"
 
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
-		return fmt.Errorf("failed to create zinit directory: %%w", err)
+		return fmt.Errorf("failed to create zinit directory: %w", err)
 	}
+	
+	// Convert grid deployments to service backends for templates
+	serviceMetaBackends := convertDeploymentsToBackends(cfg, metaBackends)
+	serviceDataBackends := convertDeploymentsToBackends(cfg, dataBackends)
+	
+	// Create a copy of the config with backends for template rendering
+	cfgWithBackends := *cfg
+	cfgWithBackends.MetaBackends = serviceMetaBackends
+	cfgWithBackends.DataBackends = serviceDataBackends
 
 	for _, name := range ManagedServices {
 		err := renderTemplate(
 			filepath.Join(zinitDir, name+".yaml"),
 			name+".yaml.template",
 			"zinit",
-			cfg,
+			&cfgWithBackends,
 		)
 		if err != nil {
 			return err
@@ -264,7 +279,7 @@ const (
 )
 
 // renderTemplate is a helper function to render templates.
-func renderTemplate(destPath, templateName, serviceType string, cfg *Config) error {
+func renderTemplate(destPath, templateName, serviceType string, cfg *config.Config) error {
 	var templatePath string
 	if serviceType == "" {
 		templatePath = filepath.Join("assets/templates", templateName)
@@ -273,29 +288,29 @@ func renderTemplate(destPath, templateName, serviceType string, cfg *Config) err
 	}
 	templateContent, err := TemplateAssets.ReadFile(templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to read embedded template %s: %%w", templatePath, err)
+		return fmt.Errorf("failed to read embedded template %s: %w", templatePath, err)
 	}
 
 	tmpl, err := template.New(templateName).Parse(string(templateContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse template %s: %%w", templateName, err)
+		return fmt.Errorf("failed to parse template %s: %w", templateName, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return fmt.Errorf("failed to execute template %s: %%w", templateName, err)
+		return fmt.Errorf("failed to execute template %s: %w", templateName, err)
 	}
 
 	return os.WriteFile(destPath, buf.Bytes(), 0644)
 }
 
-func Setup(cfg *Config, isLocal bool) error {
+func Setup(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
 	sm, err := NewServiceManager()
 	if err != nil {
 		return err
 	}
-	if err := sm.CreateServiceFiles(cfg, isLocal); err != nil {
-		return fmt.Errorf("failed to create service files: %%w", err)
+	if err := sm.CreateServiceFiles(cfg, metaBackends, dataBackends, isLocal); err != nil {
+		return fmt.Errorf("failed to create service files: %w", err)
 	}
 	return sm.DaemonReload()
 }

@@ -90,29 +90,7 @@ func runRestore() error {
 
 	// 5. Setup local machine (binaries, directories, services)
 	fmt.Println("Setting up local machine...")
-	serviceCfg := &service.Config{
-		Network:        cfg.Network,
-		Mnemonic:       cfg.Mnemonic,
-		DeploymentName: cfg.DeploymentName,
-		MetaNodes:      cfg.MetaNodes,
-		DataNodes:      cfg.DataNodes,
-		Password:       cfg.Password,
-		MetaSizeGb:     cfg.MetaSizeGb,
-		DataSizeGb:     cfg.DataSizeGb,
-		MinShards:      cfg.MinShards,
-		ExpectedShards: cfg.ExpectedShards,
-		ZdbRootPath:    cfg.ZdbRootPath,
-		QsfsMountpoint: cfg.QsfsMountpoint,
-		CachePath:      cfg.CachePath,
-		RetryInterval:  cfg.RetryInterval,
-		DatabasePath:   cfg.DatabasePath,
-		ZdbDataSize:    cfg.ZdbDataSize,
-		ZdbfsSize:      cfg.ZdbfsSize,
-		MetaBackends:   []service.Backend{},
-		DataBackends:   []service.Backend{},
-	}
-
-	if err := service.Setup(serviceCfg, false); err != nil { // false for not local
+	if err := service.Setup(cfg, metaDeployments, dataDeployments, false); err != nil { // false for not local
 		return errors.Wrap(err, "failed to perform local machine setup")
 	}
 

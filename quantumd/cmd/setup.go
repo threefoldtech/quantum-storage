@@ -12,12 +12,12 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/scottyeager/tfgrid-sdk-go/grid-client/workloads"
+	"github.com/spf13/cobra"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/hook"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/service"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
-
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -106,31 +106,7 @@ func SetupQSFS(isLocal bool) error {
 	}
 
 	// The service config needs to be converted to the one in the service package
-	serviceCfg := &service.Config{
-		Network:         cfg.Network,
-		Mnemonic:        cfg.Mnemonic,
-		DeploymentName:  cfg.DeploymentName,
-		MetaNodes:       cfg.MetaNodes,
-		DataNodes:       cfg.DataNodes,
-		Password:        cfg.Password,
-		MetaSizeGb:      cfg.MetaSizeGb,
-		DataSizeGb:      cfg.DataSizeGb,
-		MinShards:       cfg.MinShards,
-		ExpectedShards:  cfg.ExpectedShards,
-		ZdbRootPath:     cfg.ZdbRootPath,
-		QsfsMountpoint:  cfg.QsfsMountpoint,
-		CachePath:       cfg.CachePath,
-		RetryInterval:   cfg.RetryInterval,
-		DatabasePath:    cfg.DatabasePath,
-		ZdbRotateTime:   cfg.ZdbRotateTime,
-		ZdbDataSize:     cfg.ZdbDataSize,
-		ZdbfsSize:       cfg.ZdbfsSize,
-		ZstorConfigPath: cfg.ZstorConfigPath,
-		MetaBackends:    []service.Backend{},
-		DataBackends:    []service.Backend{},
-	}
-
-	if err := service.Setup(serviceCfg, isLocal); err != nil {
+	if err := service.Setup(cfg, []workloads.Deployment{}, []workloads.Deployment{}, isLocal); err != nil {
 		return err
 	}
 
