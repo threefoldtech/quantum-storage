@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 )
 
 // Checksum represents a checksum array.
@@ -104,17 +102,12 @@ func GetAllMetadata(configPath string) (map[string]Metadata, error) {
 	return allMetadata, nil
 }
 
-// AssignFilenamesToMetadata takes a map of zstor paths to metadata and assigns actual filenames
-// based on the eligible files in the zdb root path. It returns a map of actual filenames to metadata.
-func AssignFilenamesToMetadata(allMetadata map[string]Metadata, zdbRootPath string) (map[string]Metadata, error) {
+// AssignFilenamesToMetadata takes a map of zstor paths to metadata and assigns
+// actual filenames based on the passed in list of possible eligible file paths.
+// It returns a map of actual filenames to metadata.
+func AssignFilenamesToMetadata(eligibleFiles []string, allMetadata map[string]Metadata, zdbRootPath string) (map[string]Metadata, error) {
 	// Create a map of local file hashes to their actual paths
 	localFiles := make(map[string]string)
-
-	// Get all eligible files for upload
-	eligibleFiles, err := util.GetEligibleZdbFiles(zdbRootPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get eligible files: %w", err)
-	}
 
 	// Hash the paths of eligible files
 	for _, path := range eligibleFiles {
