@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
+
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/util"
 )
 
 // Checksum represents a checksum array.
@@ -99,4 +102,51 @@ func GetAllMetadata(configPath string) (map[string]Metadata, error) {
 	}
 
 	return allMetadata, nil
+}
+
+// AssignFilenamesToMetadata takes a map of zstor paths to metadata and assigns actual filenames
+// based on the eligible files in the zdb root path. It returns a map of actual filenames to metadata.
+func AssignFilenamesToMetadata(allMetadata map[string]Metadata, zdbRootPath string) (map[string]Metadata, error) {
+	// Create a map of local file hashes to their actual paths
+	localFiles := make(map[string]string)
+
+	// Get all eligible files for upload
+	eligibleFiles, err := util.GetEligibleZdbFiles(zdbRootPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get eligible files: %w", err)
+	}
+
+	// Hash the paths of eligible files
+	for _, path := range eligibleFiles {
+		// Hash the file path using the same method as zstor
+		hashedPath := GetPathHash(path)
+		localFiles[hashedPath] = path
+	}
+
+	// Create a new map with actual filenames as keys
+	filenameMetadata := make(map[string]Metadata)
+
+	// Process each file from metadata
+	for zstorPath, metadata := range allMetadata {
+		// Extract the hash part from the zstor path (/zstor-meta/meta/{hash})
+		parts := strings.Split(zstorPath, "/")
+		if len(parts) < 3 {
+			// Skip unexpected path formats
+			continue
+		}
+		fileHash := parts[len(parts)-1]
+
+		// Find the corresponding local file path
+		localPath, exists := localFiles[fileHash]
+		if !exists {
+			// Use the hash as the key if we can't find the actual path
+			filenameMetadata[fileHash] = metadata
+			continue
+		}
+
+		// Use the actual local path as the key
+		filenameMetadata[localPath] = metadata
+	}
+
+	return filenameMetadata, nil
 }
