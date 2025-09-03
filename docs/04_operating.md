@@ -1,3 +1,5 @@
+> TODO: Update with quantumd specific info.
+
 ## Introduction
 
 While some operational details are covered in the deployment sections above, this section provides an overview of operational concerns for the Quantum Safe Storage system.
@@ -72,14 +74,6 @@ If a backend goes offline, it can be replaced with a new one. Here are the steps
 2. Update zstor config to use new zdb
 3. Hot reload zstor config by issuing a `SIGUSR1` signal with `kill -SIGUSR1` (restarting zstor also works)
 4. Zstor repair subsystem will automatically regenerate the data shards and store them in the new backend zdb.
-
-## Replace frontend
-
-If the frontend machine goes down, it's possible to recover the data into a new machine. Of course, only data that has actually been uploaded to the backends can be recovered (see note above about rotation timeout).
-
-The first step is to deploy and prepare a new machine. That means installing all necessary software components and uploading the zstor config file. Don't start up services on the new machine yet though.
-
-From there, the recovery steps involve priming the new machine with enough data from the backends that it can resume operations and reconstruct all stored data. These steps are demonstrated in a [script](https://github.com/threefoldtech/quantum-storage/blob/master/pulumi/scripts/recover.sh) provided with the Pulumi based deployer.
 
 ## Zstor
 
