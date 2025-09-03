@@ -40,7 +40,7 @@ type Daemon struct {
 
 	// Channels for internal communication
 	quitChan chan bool
-	
+
 	// Channel for upload requests
 	uploadRequestCh chan uploadRequest
 }
@@ -83,16 +83,11 @@ func NewDaemon(cfg *config.Config, zstorClient *zstor.Client, metricsScraper *zs
 		quitChan:         make(chan bool),
 	}
 
-	// Initialize metadata store
-	if err := d.refreshMetadata(); err != nil {
-		return nil, fmt.Errorf("failed to initialize metadata: %w", err)
-	}
-
 	return d, nil
 }
 
 // refreshMetadata fetches all metadata and updates the in-memory store
-func (d *Daemon) refreshMetadata() error {
+func (d *Daemon) RefreshMetadata() error {
 	log.Println("Refreshing metadata...")
 
 	// Get eligible files

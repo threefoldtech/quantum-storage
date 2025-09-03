@@ -43,6 +43,11 @@ var daemonCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize daemon: %w", err)
 		}
 
+		// Initialize metadata store
+		if err := d.RefreshMetadata(); err != nil {
+			return fmt.Errorf("failed to initialize metadata: %w", err)
+		}
+
 		// Start all goroutines
 		go d.StartHookHandler()
 		go d.StartRetryLoop()
