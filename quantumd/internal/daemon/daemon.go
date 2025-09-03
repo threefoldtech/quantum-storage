@@ -17,6 +17,11 @@ import (
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
+// Metrics holds all Prometheus metrics for the daemon
+type Metrics struct {
+	lastRetryRunTime prometheus.Gauge
+}
+
 // Daemon represents the main daemon structure
 type Daemon struct {
 	cfg            *config.Config
@@ -30,7 +35,7 @@ type Daemon struct {
 	pendingUploads map[string]bool
 
 	// Prometheus metrics
-	lastRetryRunTime prometheus.Gauge
+	metrics *Metrics
 
 	// Channels for communication
 	hookChan         chan string
@@ -60,30 +65,34 @@ type uploadResult struct {
 
 // NewDaemon creates a new daemon instance
 func NewDaemon(cfg *config.Config, zstorClient *zstor.Client, metricsScraper *zstor.MetricsScraper) (*Daemon, error) {
-	lastRetryRunTime := prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "last_retry_run_time",
-			Help: "The timestamp of the last successful retry cycle.",
-		},
-	)
-	prometheus.MustRegister(lastRetryRunTime)
-
 	d := &Daemon{
-		cfg:              cfg,
-		zstorClient:      zstorClient,
-		metricsScraper:   metricsScraper,
-		metadataStore:    make(map[string]zstor.Metadata),
-		pendingUploads:   make(map[string]bool),
-		lastRetryRunTime: lastRetryRunTime,
-		hookChan:         make(chan string, 100),
-		retryChan:        make(chan bool, 1),
+		cfg:            cfg,
+		zstorClient:    zstorClient,
+		metricsScraper: metricsScraper,
+		metadataStore:  make(map[string]zstor.Metadata),
+		pendingUploads: make(map[string]bool),
+		metrics:        &Metrics{},
+		hookChan:       make(chan string, 100),
+		retryChan:      make(chan bool, 1),
 		uploadCompleteCh: make(chan uploadResult, 100),
 		metadataChan:     make(chan map[string]zstor.Metadata, 1),
 		uploadRequestCh:  make(chan uploadRequest, 100),
 		quitChan:         make(chan bool),
 	}
 
+	d.initMetrics()
 	return d, nil
+}
+
+// initMetrics initializes all Prometheus metrics
+func (d *Daemon) initMetrics() {
+	d.metrics.lastRetryRunTime = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "last_retry_run_time",
+			Help: "The timestamp of the last successful retry cycle.",
+		},
+	)
+	prometheus.MustRegister(d.metrics.lastRetryRunTime)
 }
 
 // refreshMetadata fetches all metadata and updates the in-memory store
@@ -317,7 +326,7 @@ func (d *Daemon) handleUploadResult(result uploadResult) {
 // handleMetricsUpdate processes a metrics update
 func (d *Daemon) handleMetricsUpdate() {
 	timestamp := float64(time.Now().Unix())
-	d.lastRetryRunTime.Set(timestamp)
+	d.metrics.lastRetryRunTime.Set(timestamp)
 	log.Println("Updated last_retry_run_time metric.")
 }
 
