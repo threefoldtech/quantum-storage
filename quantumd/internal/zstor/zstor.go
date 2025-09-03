@@ -139,11 +139,11 @@ func (c *Client) Test() error {
 }
 
 // GetLocalHash computes the BLAKE2b-128 hash of a file.
-func GetLocalHash(file string) string {
+func GetLocalHash(file string) []byte {
 	f, err := os.Open(file)
 	if err != nil {
 		log.Printf("failed to open file for hashing %s: %v", file, err)
-		return ""
+		return nil
 	}
 	defer f.Close()
 
@@ -152,15 +152,15 @@ func GetLocalHash(file string) string {
 	h, err := blake2b.New(16, nil)
 	if err != nil {
 		log.Printf("failed to create blake2b hash: %v", err)
-		return ""
+		return nil
 	}
 
 	if _, err := io.Copy(h, f); err != nil {
 		log.Printf("failed to hash file %s: %v", file, err)
-		return ""
+		return nil
 	}
 
-	return hex.EncodeToString(h.Sum(nil))
+	return h.Sum(nil)
 }
 
 // GetPathHash computes the BLAKE2b-128 hash of a path. These are used by zstor

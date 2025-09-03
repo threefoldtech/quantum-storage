@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -78,49 +78,50 @@ func checkAndPrintHashes(eligibleFiles []string, filenameMetadata map[string]zst
 	for _, file := range eligibleFiles {
 		files++
 
-		metadata, exists := filenameMetadata[file]
-		var dbHash []byte
 		var status string
+		var localHash []byte
+		var remoteHash []byte
 		var localHashDisplay string
+		var remoteHashDisplay string
 
-		if !exists {
-			// File is eligible but not in metadata (pending upload)
-			status = "Pending"
-			localHashDisplay = "N/A"
-			dbHashStr := "N/A"
-			fmt.Printf("%-70s %-35s %-35s %-10s\n", file, dbHashStr, localHashDisplay, status)
-			continue
+		metadata, existsRemote := filenameMetadata[file]
+		if existsRemote {
+			// File exists in metadata, get its remote hash
+			remoteHash = metadata.Checksum
+			remoteHashDisplay = hex.EncodeToString(remoteHash)
+		} else {
+			// File does not exist in metadata, remote hash is nil
+			remoteHash = nil
+			remoteHashDisplay = "N/A"
 		}
 
-		// File exists in metadata, get its remote hash
-		dbHash = metadata.Checksum
-		dbHashStr := hex.EncodeToString([]byte(dbHash))
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			localHash = nil
+			localHashDisplay = "N/A"
+		} else {
+			localHash = zstor.GetLocalHash(file)
+			localHashDisplay = hex.EncodeToString(localHash)
+		}
 
 		// Check if local file exists
-		if _, err := os.Stat(file); os.IsNotExist(err) {
+		if existsRemote && remoteHash != nil && localHash == nil {
 			// File is in metadata but not on local disk - this is okay
 			status = "OK (Remote)"
-			localHashDisplay = "Not on disk"
 			notFound++
-		} else {
-			// File exists locally, calculate and compare hashes
-			localHashStr := zstor.GetLocalHash(file)
-			localHash, err := hex.DecodeString(localHashStr)
-			if err != nil {
-				log.Printf("Failed to decode local hash for %s: %v", file, err)
-				status = "Error"
-				localHashDisplay = localHashStr
-			} else if string(dbHash) == string(localHash) {
+		} else if localHash != nil && remoteHash == nil {
+			// File exists locally but not in metadata - pending upload
+			status = "Pending"
+		} else if remoteHash != nil && localHash != nil {
+			// File exists locally, compare hashes
+			if bytes.Equal(remoteHash, localHash) {
 				status = "OK"
-				localHashDisplay = localHashStr
 			} else {
 				status = "Mismatch"
-				localHashDisplay = localHashStr
 				mismatches++
 			}
 		}
 
-		fmt.Printf("%-70s %-35s %-35s %-10s\n", file, dbHashStr, localHashDisplay, status)
+		fmt.Printf("%-70s %-35s %-35s %-10s\n", file, remoteHashDisplay, localHashDisplay, status)
 	}
 
 	if files == 0 {

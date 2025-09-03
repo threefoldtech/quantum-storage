@@ -304,13 +304,6 @@ func (d *Daemon) handleRetry() {
 			continue
 		}
 
-		// Get local hash
-		localHash := zstor.GetLocalHash(filePath)
-		if localHash == "" {
-			log.Printf("Failed to get local hash for file %s, skipping", filePath)
-			continue
-		}
-
 		// Check if file exists locally
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			continue
