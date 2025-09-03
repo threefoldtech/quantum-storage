@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	"github.com/threefoldtech/quantum-storage/quantumd/internal/config"
 	"github.com/threefoldtech/quantum-storage/quantumd/internal/zstor"
 )
 
@@ -15,11 +16,11 @@ var statusCmd = &cobra.Command{
 	Long:  `This command shows the current status of all zdb backends by querying the zstor prometheus endpoint.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load config to get zstor config path
-		cfg, err := loadDaemonConfig(cmd)
+		cfg, err := config.LoadConfig(ConfigFile)
 		if err != nil {
 			return err
 		}
-		
+
 		// Initialize zstor metrics scraper
 		metricsScraper, err := zstor.NewMetricsScraper(cfg.ZstorConfigPath)
 		if err != nil {
