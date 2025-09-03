@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -36,6 +35,8 @@ func MapIPs(ips []string) map[string]string {
 
 // GetEligibleZdbFiles returns all files that are eligible for upload into zstor
 // It takes a base path for zdb data and returns full paths of eligible files
+// These files might not exist on disk, since zstor can remove uploaded files,
+// so it's a theoretical set
 func GetEligibleZdbFiles(basePath string) ([]string, error) {
 	var result []string
 
@@ -67,44 +68,38 @@ func GetEligibleZdbFiles(basePath string) ([]string, error) {
 				return nil, fmt.Errorf("error reading directory %s: %w", nsPath, err)
 			}
 
-			// Separate numbered files from zdb-namespace files
-			var numberedFiles []string
-			var zdbNamespaceFiles []string
+			// Add zdb-namespace file to result (always included when in index dir)
+			if dir == "index" {
+				result = append(result, filepath.Join(nsPath, "zdb-namespace"))
+			}
 
+			// Find the highest index number
+			highestNum := -1
 			for _, file := range files {
 				if file.IsDir() {
 					continue
 				}
-
 				name := file.Name()
-				if name == "zdb-namespace" {
-					zdbNamespaceFiles = append(zdbNamespaceFiles, filepath.Join(nsPath, name))
-				} else {
-					numberedFiles = append(numberedFiles, name)
+				if name != "zdb-namespace" {
+					if num, err := extractNumber(name); err == nil && num > highestNum {
+						highestNum = num
+					}
 				}
 			}
 
-			// Sort numbered files to identify the highest number
-			sort.Slice(numberedFiles, func(i, j int) bool {
-				// Extract numbers from filenames for proper sorting
-				numI, errI := extractNumber(numberedFiles[i])
-				numJ, errJ := extractNumber(numberedFiles[j])
-
-				// If conversion fails for either, we can't sort properly
-				if errI != nil || errJ != nil {
-					// In case of error, maintain original order
-					return i < j
+			// Generate all possible paths from 0 to highestNum-1
+			if highestNum > 0 {
+				for num := range highestNum {
+					var path string
+					if dir == "data" {
+						// Generate 'd' prefixed paths for data directory
+						path = filepath.Join(nsPath, fmt.Sprintf("d%d", num))
+					} else if dir == "index" {
+						// Generate 'i' prefixed paths for index directory
+						path = filepath.Join(nsPath, fmt.Sprintf("i%d", num))
+					}
+					result = append(result, path)
 				}
-
-				return numI < numJ
-			})
-
-			// Add zdb-namespace files to result (always included)
-			result = append(result, zdbNamespaceFiles...)
-
-			// Add numbered files except the highest one
-			for i := 0; i < len(numberedFiles)-1; i++ { // -1 to exclude the last (highest) file
-				result = append(result, filepath.Join(nsPath, numberedFiles[i]))
 			}
 		}
 	}
