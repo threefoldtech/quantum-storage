@@ -84,6 +84,42 @@ func NewDaemon(cfg *config.Config, zstorClient *zstor.Client, metricsScraper *zs
 	return d, nil
 }
 
+// Init initializes the daemon by refreshing metadata and starting all goroutines
+func (d *Daemon) Init() error {
+	// Initialize metadata store
+	if err := d.RefreshMetadata(); err != nil {
+		return fmt.Errorf("failed to initialize metadata: %w", err)
+	}
+	// Start all goroutines
+	go d.StartHookHandler()
+	go d.StartRetryLoop()
+	go d.StartPrometheusServer()
+	go d.StartMetricsScraper()
+	go d.StartMetadataRefresh()
+	return nil
+}
+
+// Run is the main loop of the daemon
+func (d *Daemon) Run() {
+	for {
+		select {
+		case hookMsg := <-d.hookChan:
+			d.handleHookMessage(hookMsg)
+		case <-d.retryChan:
+			d.handleRetry()
+		case result := <-d.uploadCompleteCh:
+			d.handleUploadResult(result)
+		case metadata := <-d.metadataChan:
+			d.handleMetadataUpdate(metadata)
+		case req := <-d.uploadRequestCh:
+			d.handleUploadRequest(req)
+		case <-d.quitChan:
+			log.Println("Daemon shutting down...")
+			return
+		}
+	}
+}
+
 // initMetrics initializes all Prometheus metrics
 func (d *Daemon) initMetrics() {
 	d.metrics.lastRetryRunTime = prometheus.NewGauge(
@@ -222,27 +258,6 @@ func (d *Daemon) StartMetadataRefresh() {
 				d.metadataChan <- filenameMetadata
 			}()
 		case <-d.quitChan:
-			return
-		}
-	}
-}
-
-// Run is the main loop of the daemon
-func (d *Daemon) Run() {
-	for {
-		select {
-		case hookMsg := <-d.hookChan:
-			d.handleHookMessage(hookMsg)
-		case <-d.retryChan:
-			d.handleRetry()
-		case result := <-d.uploadCompleteCh:
-			d.handleUploadResult(result)
-		case metadata := <-d.metadataChan:
-			d.handleMetadataUpdate(metadata)
-		case req := <-d.uploadRequestCh:
-			d.handleUploadRequest(req)
-		case <-d.quitChan:
-			log.Println("Daemon shutting down...")
 			return
 		}
 	}
