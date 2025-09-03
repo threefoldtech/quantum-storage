@@ -1,14 +1,14 @@
 package zstor
 
 import (
-	"bufio"
 	"fmt"
+	"log"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 // BackendStatus represents the status of a zstor backend
@@ -82,6 +82,7 @@ func (ms *MetricsScraper) ScrapeMetrics() error {
 	}
 
 	url := fmt.Sprintf("http://localhost:%d/metrics", port)
+	log.Printf("Scraping metrics from %s", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to fetch metrics from %s: %w", url, err)
@@ -92,19 +93,23 @@ func (ms *MetricsScraper) ScrapeMetrics() error {
 		return fmt.Errorf("received non-200 response from %s: %d", url, resp.StatusCode)
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
+	// Parse metrics using expfmt
+	parser := expfmt.TextParser{}
+	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to parse metrics: %w", err)
+	}
 
-		// Look for connection_status metrics
-		if strings.HasPrefix(line, "connection_status{") {
-			ms.parseConnectionStatusMetric(line)
+	metricCount := 0
+	// Process connection_status metrics
+	if family, exists := metricFamilies["connection_status"]; exists {
+		for _, metric := range family.Metric {
+			ms.processConnectionStatusMetric(metric)
+			metricCount++
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading metrics response: %w", err)
-	}
+	log.Printf("Found %d connection_status metrics", metricCount)
 
 	// Update prometheus metrics
 	ms.updatePrometheusMetrics()
@@ -115,40 +120,45 @@ func (ms *MetricsScraper) ScrapeMetrics() error {
 	return nil
 }
 
-// parseConnectionStatusMetric parses a connection_status metric line
-func (ms *MetricsScraper) parseConnectionStatusMetric(line string) {
-	// Example line:
-	// connection_status{address="[45b:7cd9:4930:2763:3e54:4b4f:905b:dd16]:9900",backend_type="data",namespace="5545-1386679-qsfs_5545_data_921"} 1
+// processConnectionStatusMetric processes a connection_status metric
+func (ms *MetricsScraper) processConnectionStatusMetric(metric *dto.Metric) {
+	var address, backendType, namespace string
 
-	// Extract labels and value
-	start := strings.Index(line, "{")
-	end := strings.Index(line, "}")
-	if start == -1 || end == -1 {
-		return
+	// Extract labels
+	for _, label := range metric.Label {
+		switch label.GetName() {
+		case "address":
+			address = label.GetValue()
+		case "backend_type":
+			backendType = label.GetValue()
+		case "namespace":
+			namespace = label.GetValue()
+		}
 	}
 
-	labels := line[start+1 : end]
-	valueStr := strings.TrimSpace(line[end+1:])
+	log.Printf("Processing connection status metric: address=%s, backend_type=%s, namespace=%s",
+		address, backendType, namespace)
 
-	// Parse value
-	value, err := strconv.ParseFloat(valueStr, 64)
-	if err != nil {
-		return
+	// Extract value
+	var value float64
+	if metric.Gauge != nil {
+		value = metric.Gauge.GetValue()
+	} else if metric.Counter != nil {
+		value = metric.Counter.GetValue()
+	} else if metric.Untyped != nil {
+		value = metric.Untyped.GetValue()
 	}
-
-	// Parse labels
-	labelMap := parseLabels(labels)
 
 	// Create a unique key for this backend
-	key := fmt.Sprintf("%s-%s-%s", labelMap["address"], labelMap["backend_type"], labelMap["namespace"])
+	key := fmt.Sprintf("%s-%s-%s", address, backendType, namespace)
 
 	// Update or create backend status
 	status, exists := ms.backendStatus[key]
 	if !exists {
 		status = &BackendStatus{
-			Address:     labelMap["address"],
-			BackendType: labelMap["backend_type"],
-			Namespace:   labelMap["namespace"],
+			Address:     address,
+			BackendType: backendType,
+			Namespace:   namespace,
 		}
 		ms.backendStatus[key] = status
 	}
@@ -157,44 +167,17 @@ func (ms *MetricsScraper) parseConnectionStatusMetric(line string) {
 	status.LastSeen = time.Now()
 }
 
-// parseLabels parses the labels from a prometheus metric line
-func parseLabels(labels string) map[string]string {
-	result := make(map[string]string)
-
-	// Split by commas, but be careful of commas inside quoted strings
-	parts := strings.Split(labels, "\",")
-	for _, part := range parts {
-		// Clean up the part
-		part = strings.TrimSpace(part)
-		if part[len(part)-1] == '"' {
-			part = part[:len(part)-1]
-		}
-
-		// Split by equals
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) == 2 {
-			key := strings.TrimSpace(kv[0])
-			value := strings.TrimSpace(kv[1])
-
-			// Remove quotes
-			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-				value = value[1 : len(value)-1]
-			}
-
-			result[key] = value
-		}
-	}
-
-	return result
-}
-
 // updatePrometheusMetrics updates the prometheus metrics with current backend status
 func (ms *MetricsScraper) updatePrometheusMetrics() {
-	for _, status := range ms.backendStatus {
+	log.Printf("Updating prometheus metrics with %d backend statuses", len(ms.backendStatus))
+	for key, status := range ms.backendStatus {
 		value := 0.0
 		if status.IsAlive {
 			value = 1.0
 		}
+
+		log.Printf("Backend status - key: %s, address: %s, type: %s, namespace: %s, alive: %t",
+			key, status.Address, status.BackendType, status.Namespace, status.IsAlive)
 
 		ms.statusGauge.With(prometheus.Labels{
 			"address":      status.Address,
@@ -217,5 +200,6 @@ func (ms *MetricsScraper) GetBackendLastSeen(address, backendType, namespace str
 
 // GetBackendStatuses returns all current backend statuses
 func (ms *MetricsScraper) GetBackendStatuses() map[string]*BackendStatus {
+	log.Printf("Returning %d backend statuses", len(ms.backendStatus))
 	return ms.backendStatus
 }

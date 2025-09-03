@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
@@ -306,11 +307,23 @@ func (d *Daemon) handleRetry() {
 
 		// Check if file exists locally
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			// File exists in metadata but not locally, retrieve it
+			if _, exists := d.metadataStore[filePath]; exists {
+				log.Printf("File %s missing locally but exists in metadata, queuing for retrieval...", filePath)
+				// Run retrieval in background to avoid blocking the retry loop
+				go func() {
+					if err := d.zstorClient.Retrieve(filePath); err != nil {
+						log.Printf("Failed to retrieve file %s: %v", filePath, err)
+					} else {
+						log.Printf("Successfully retrieved file %s", filePath)
+					}
+				}()
+			}
 			continue
 		}
 
 		// Check metadata to see if file is already stored
-		_, exists := d.metadataStore[filePath]
+		metadata, exists := d.metadataStore[filePath]
 
 		// If metadata doesn't exist, upload the file
 		if !exists {
@@ -318,6 +331,15 @@ func (d *Daemon) handleRetry() {
 			// Determine if it's an index file
 			isIndex := strings.Contains(filePath, "/index/")
 			d.uploadFile(filePath, isIndex)
+		} else {
+			// File exists both locally and in metadata, compare hashes
+			localHash := zstor.GetLocalHash(filePath)
+			if localHash != nil && !bytes.Equal(metadata.Checksum, localHash) {
+				log.Printf("File %s hash mismatch, queuing for re-upload...", filePath)
+				// Determine if it's an index file
+				isIndex := strings.Contains(filePath, "/index/")
+				d.uploadFile(filePath, isIndex)
+			}
 		}
 	}
 
