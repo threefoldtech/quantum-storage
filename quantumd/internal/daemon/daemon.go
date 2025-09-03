@@ -66,14 +66,14 @@ type uploadResult struct {
 // NewDaemon creates a new daemon instance
 func NewDaemon(cfg *config.Config, zstorClient *zstor.Client, metricsScraper *zstor.MetricsScraper) (*Daemon, error) {
 	d := &Daemon{
-		cfg:            cfg,
-		zstorClient:    zstorClient,
-		metricsScraper: metricsScraper,
-		metadataStore:  make(map[string]zstor.Metadata),
-		pendingUploads: make(map[string]bool),
-		metrics:        &Metrics{},
-		hookChan:       make(chan string, 100),
-		retryChan:      make(chan bool, 1),
+		cfg:              cfg,
+		zstorClient:      zstorClient,
+		metricsScraper:   metricsScraper,
+		metadataStore:    make(map[string]zstor.Metadata),
+		pendingUploads:   make(map[string]bool),
+		metrics:          &Metrics{},
+		hookChan:         make(chan string, 100),
+		retryChan:        make(chan bool, 1),
 		uploadCompleteCh: make(chan uploadResult, 100),
 		metadataChan:     make(chan map[string]zstor.Metadata, 1),
 		uploadRequestCh:  make(chan uploadRequest, 100),
@@ -135,15 +135,10 @@ func (d *Daemon) StartHookHandler() {
 
 // StartRetryLoop starts the retry loop
 func (d *Daemon) StartRetryLoop() {
-	interval := d.cfg.RetryInterval
-	if interval <= 0 {
-		interval = defaultRetryInterval
-	}
-
 	// Run once immediately
 	d.retryChan <- true
 
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(d.cfg.RetryInterval)
 	defer ticker.Stop()
 
 	for {
@@ -416,5 +411,3 @@ func startPrometheusServer(port int) {
 		log.Fatalf("Failed to start Prometheus server: %v", err)
 	}
 }
-
-const defaultRetryInterval = 1 * time.Minute
