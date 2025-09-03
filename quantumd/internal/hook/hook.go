@@ -19,28 +19,19 @@ const (
 	SocketPath = "/tmp/zdb-hook.sock"
 )
 
-// UploadTracker defines the interface for tracking uploaded files.
-type UploadTracker interface {
-	MarkUploaded(filePath, hash string, fileSize int64) error
-	IsUploaded(filePath string) (bool, error)
-}
-
-
 // Handler manages hook dispatching
 type Handler struct {
-	ZstorIndex    string
-	ZstorData     string
-	UploadTracker UploadTracker
-	Zstor         *zstor.Client
+	ZstorIndex string
+	ZstorData  string
+	Zstor      *zstor.Client
 }
 
 // NewHandler creates a new hook handler
-func NewHandler(zdbRootPath string, tracker UploadTracker, zstorClient *zstor.Client) (*Handler, error) {
+func NewHandler(zdbRootPath string, zstorClient *zstor.Client) (*Handler, error) {
 	h := &Handler{
-		ZstorIndex:    filepath.Join(zdbRootPath, "index"),
-		ZstorData:     filepath.Join(zdbRootPath, "data"),
-		UploadTracker: tracker,
-		Zstor:         zstorClient,
+		ZstorIndex: filepath.Join(zdbRootPath, "index"),
+		ZstorData:  filepath.Join(zdbRootPath, "data"),
+		Zstor:      zstorClient,
 	}
 	return h, nil
 }
@@ -157,50 +148,20 @@ func (h *Handler) dispatchHook(action string, args []string) error {
 	}
 }
 
-// uploadAndTrack handles uploading a file and marking it in the database.
+// uploadAndTrack handles uploading a file.
 func (h *Handler) uploadAndTrack(filePath string, isIndex bool) {
-	fileInfo, err := os.Stat(filePath)
+	// NOTE: In the new implementation, the actual upload is handled by the daemon.
+	// This function just logs the intent to upload.
+
+	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return
 	}
 
-	if !isIndex { // This is a data file
-		uploaded, err := h.UploadTracker.IsUploaded(filePath)
-		if err != nil {
-			log.Printf("Failed to check upload status for %s: %v", filePath, err)
-			// Continue anyway, better to re-upload than to miss an upload.
-		}
-		if uploaded {
-			log.Printf("Skipping already uploaded data file: %s", filePath)
-			return
-		}
-	}
-
-	var uploadErr error
-	if isIndex {
-		// Use StoreBatch for all index files to ensure atomicity and correct pathing.
-		uploadErr = h.Zstor.StoreBatch([]string{filePath}, filepath.Dir(filePath))
-	} else {
-		// Use the simplified Store for data files.
-		uploadErr = h.Zstor.Store(filePath)
-	}
-
-	if uploadErr != nil {
-		log.Printf("Failed to upload %s: %v", filePath, uploadErr)
-		return
-	}
-
-	// Only track data files in the database. Index files are handled by the retry manager.
-	if !isIndex {
-		hash := zstor.GetLocalHash(filePath)
-		if hash == "" {
-			log.Printf("Failed to get local hash for %s, cannot mark as uploaded", filePath)
-			return
-		}
-		if err := h.UploadTracker.MarkUploaded(filePath, hash, fileInfo.Size()); err != nil {
-			log.Printf("Failed to mark file as uploaded: %v", err)
-		}
-	}
+	log.Printf("Queuing upload for: %s (isIndex: %t)", filePath, isIndex)
+	
+	// In the new implementation, the daemon will handle the actual upload
+	// We're just logging the intent here
 }
 
 func (h *Handler) handleClose() error {
@@ -274,14 +235,8 @@ func (h *Handler) handleJumpIndex(indexPath string, dirtyIndices []string) error
 		uploadList = append(uploadList, file)
 	}
 
-	// Upload all files in a single batch
-	go func() {
-		if err := h.Zstor.StoreBatch(uploadList, dirBase); err != nil {
-			log.Printf("Failed to upload index batch for namespace %s: %v", namespace, err)
-		} else {
-			log.Printf("Successfully uploaded index batch for namespace %s", namespace)
-		}
-	}()
+	// In the new implementation, the daemon will handle the actual upload
+	log.Printf("Queuing batch upload for namespace %s with %d files", namespace, len(uploadList))
 
 	return nil
 }
