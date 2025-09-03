@@ -148,7 +148,7 @@ func (d *Daemon) initMetrics() {
 	prometheus.MustRegister(d.metrics.unhealthyFileConfigs)
 }
 
-// refreshMetadata fetches all metadata and updates the in-memory store
+// RefreshMetadata fetches all metadata and updates the in-memory store
 func (d *Daemon) RefreshMetadata() error {
 	log.Println("Refreshing metadata...")
 
@@ -157,12 +157,14 @@ func (d *Daemon) RefreshMetadata() error {
 	if err != nil {
 		return fmt.Errorf("failed to get eligible files: %w", err)
 	}
+	log.Printf("Found %d eligible files", len(eligibleFiles))
 
 	// Fetch all metadata
 	allMetadata, err := d.zstorClient.GetAllMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to fetch all metadata: %w", err)
 	}
+	log.Printf("Retrieved metadata for %d files", len(allMetadata))
 
 	// Assign filenames to metadata
 	filenameMetadata, err := zstor.AssignFilenamesToMetadata(eligibleFiles, allMetadata, d.cfg.ZdbRootPath)
@@ -415,13 +417,18 @@ func (d *Daemon) isFileBackendHealthy(filePath string, metadata zstor.Metadata) 
 			if status.IsAlive {
 				healthyBackends++
 			}
+			// If backend doesn't exist in metrics, it's considered unhealthy
+		} else {
+			log.Printf("Backend %s not found in scraped metrics for file %s", key, filePath)
 		}
-		// If backend doesn't exist in metrics, it's considered unhealthy
 	}
-
 	// Check if we have enough healthy backends for the desired shards
-	// We need at least metadata.DataShards healthy backends
-	return healthyBackends >= metadata.DataShards
+	// We need at least metadata.DataShards + metadata.DisposableShards healthy backends
+	requiredShards := metadata.DataShards + metadata.DisposableShards
+	result := healthyBackends >= requiredShards
+	log.Printf("File %s health check result: %d healthy backends, %d required shards (data + disposable), healthy: %t",
+		filePath, healthyBackends, requiredShards, result)
+	return result
 }
 
 // handleMetadataUpdate processes a metadata update
