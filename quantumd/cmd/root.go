@@ -24,7 +24,6 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "/etc/quantumd.yaml", "Path to YAML config file")
-	rootCmd.PersistentFlags().BoolVarP(&localMode, "local", "l", false, "Enable local mode")
 	rootCmd.PersistentFlags().Bool("version", false, "Print the version number of quantumd")
 
 	// Add version flag handler

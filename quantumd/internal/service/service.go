@@ -17,7 +17,7 @@ import (
 
 // ServiceManager defines the interface for managing system services.
 type ServiceManager interface {
-	CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error
+	CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment) error
 	StartService(name string) error
 	EnableService(name string) error
 	DisableService(name string) error
@@ -53,7 +53,7 @@ func NewServiceManager() (ServiceManager, error) {
 // SystemdManager implements ServiceManager for systemd.
 type SystemdManager struct{}
 
-func (s *SystemdManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
+func (s *SystemdManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment) error {
 	// Convert grid deployments to service backends for templates
 	serviceMetaBackends := convertDeploymentsToBackends(cfg, metaBackends)
 	serviceDataBackends := convertDeploymentsToBackends(cfg, dataBackends)
@@ -73,9 +73,6 @@ func (s *SystemdManager) CreateServiceFiles(cfg *config.Config, metaBackends, da
 		if err != nil {
 			return err
 		}
-	}
-	if isLocal {
-		return s.createLocalSystemdBackends(cfg.ZdbDataSize)
 	}
 	return nil
 }
@@ -146,38 +143,10 @@ func (s *SystemdManager) ServiceIsRunning(name string) (bool, error) {
 	return false, err
 }
 
-func (s *SystemdManager) createLocalSystemdBackends(zdbDataSize string) error {
-	for i, port := range []int{9901, 9902, 9903, 9904} {
-		service := fmt.Sprintf(`[Unit]
-Description=Local ZDB Backend %d
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/zdb \
-    --port=%d \
-    --data=/data/data%d \
-    --index=/data/index%d \
-    --logfile=/var/log/zdb%d.log \
-    --datasize %s \
-Restart=always
-RestartSec=5
-TimeoutStopSec=60
-
-[Install]
-WantedBy=multi-user.target`, i+1, port, i+1, i+1, i+1, zdbDataSize)
-
-		path := fmt.Sprintf("/etc/systemd/system/zdb-back%d.service", i+1)
-		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %%w", path, err)
-		}
-	}
-	return nil
-}
-
 // ZinitManager implements ServiceManager for zinit.
 type ZinitManager struct{}
 
-func (z *ZinitManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
+func (z *ZinitManager) CreateServiceFiles(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment) error {
 	zinitDir := "/etc/zinit"
 
 	if err := os.MkdirAll(zinitDir, 0755); err != nil {
@@ -203,9 +172,6 @@ func (z *ZinitManager) CreateServiceFiles(cfg *config.Config, metaBackends, data
 		if err != nil {
 			return err
 		}
-	}
-	if isLocal {
-		return z.createLocalZinitBackends()
 	}
 	return nil
 }
@@ -255,23 +221,6 @@ func (z *ZinitManager) ServiceIsRunning(name string) (bool, error) {
 	return strings.Contains(string(output), "state: Running"), nil
 }
 
-func (z *ZinitManager) createLocalZinitBackends() error {
-	for i, port := range []int{9901, 9902, 9903, 9904} {
-		service := fmt.Sprintf(`exec: |
-  /usr/local/bin/zdb
-    --port %d
-    --data /data/data%d
-    --index /data/index%d
-    --logfile /var/log/zdb%d.log`, port, i+1, i+1, i+1)
-
-		path := fmt.Sprintf("/etc/zinit/zdb-back%d.yaml", i+1)
-		if err := os.WriteFile(path, []byte(service), 0644); err != nil {
-			return fmt.Errorf("failed to write service file %s: %%w", path, err)
-		}
-	}
-	return nil
-}
-
 const (
 	zdbfsVersion = "0.1.11"
 	zdbVersion   = "2.0.8"
@@ -304,12 +253,12 @@ func renderTemplate(destPath, templateName, serviceType string, cfg *config.Conf
 	return os.WriteFile(destPath, buf.Bytes(), 0644)
 }
 
-func Setup(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment, isLocal bool) error {
+func Setup(cfg *config.Config, metaBackends, dataBackends []workloads.Deployment) error {
 	sm, err := NewServiceManager()
 	if err != nil {
 		return err
 	}
-	if err := sm.CreateServiceFiles(cfg, metaBackends, dataBackends, isLocal); err != nil {
+	if err := sm.CreateServiceFiles(cfg, metaBackends, dataBackends); err != nil {
 		return fmt.Errorf("failed to create service files: %w", err)
 	}
 	return sm.DaemonReload()

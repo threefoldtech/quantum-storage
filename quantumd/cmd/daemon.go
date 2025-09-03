@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,7 +20,6 @@ import (
 
 func init() {
 	rootCmd.AddCommand(daemonCmd)
-	daemonCmd.Flags().BoolP("local", "l", false, "Enable local mode for the daemon")
 }
 
 var daemonCmd = &cobra.Command{
@@ -77,22 +75,7 @@ func startPrometheusServer(port int) {
 }
 
 func loadDaemonConfig(cmd *cobra.Command) (*config.Config, error) {
-	if localMode, _ := cmd.Flags().GetBool("local"); localMode {
-		if _, err := os.Stat(ConfigFile); err == nil {
-			return config.LoadConfig(ConfigFile)
-		}
-		// Return a default config for local mode if no config file is present
-		return &config.Config{
-			QsfsMountpoint: "/mnt/qsfs",
-			ZdbRootPath:    "/var/lib/zdb",
-			CachePath:      "/var/cache/zdbfs",
-			Password:       "zdbpassword",
-			MinShards:      2,
-			ExpectedShards: 4,
-			RetryInterval:  defaultRetryInterval,
-		}, nil
-	}
-	// In remote mode, config is required
+	// Config is always required
 	return config.LoadConfig(ConfigFile)
 }
 
@@ -104,11 +87,9 @@ type Daemon struct {
 
 	// In-memory metadata store
 	metadataStore map[string]zstor.Metadata
-	metadataMutex sync.RWMutex
 
 	// Pending uploads list
 	pendingUploads map[string]bool
-	pendingMutex   sync.RWMutex
 
 	// Prometheus metrics
 	lastRetryRunTime prometheus.Gauge
@@ -117,11 +98,19 @@ type Daemon struct {
 	hookChan         chan string
 	retryChan        chan bool
 	uploadCompleteCh chan uploadResult
-	metricsChan      chan bool
 	metadataChan     chan map[string]zstor.Metadata
 
 	// Channels for internal communication
 	quitChan chan bool
+	
+	// Channel for upload requests
+	uploadRequestCh chan uploadRequest
+}
+
+// uploadRequest represents a request to upload a file
+type uploadRequest struct {
+	filePath string
+	isIndex  bool
 }
 
 // uploadResult represents the result of an upload operation
@@ -151,8 +140,8 @@ func newDaemon(cfg *config.Config, zstorClient *zstor.Client, metricsScraper *zs
 		hookChan:         make(chan string, 100),
 		retryChan:        make(chan bool, 1),
 		uploadCompleteCh: make(chan uploadResult, 100),
-		metricsChan:      make(chan bool, 1),
 		metadataChan:     make(chan map[string]zstor.Metadata, 1),
+		uploadRequestCh:  make(chan uploadRequest, 100),
 		quitChan:         make(chan bool),
 	}
 
@@ -187,9 +176,7 @@ func (d *Daemon) refreshMetadata() error {
 	}
 
 	// Update in-memory store
-	d.metadataMutex.Lock()
 	d.metadataStore = filenameMetadata
-	d.metadataMutex.Unlock()
 
 	log.Printf("Metadata refreshed, found metadata for %d files", len(filenameMetadata))
 	return nil
@@ -240,7 +227,7 @@ func (d *Daemon) startMetricsScraper() {
 	if err := d.metricsScraper.ScrapeMetrics(); err != nil {
 		log.Printf("Failed to scrape zstor metrics: %v", err)
 	} else {
-		d.metricsChan <- true
+		d.handleMetricsUpdate()
 	}
 
 	// Then run every 30 seconds
@@ -254,7 +241,7 @@ func (d *Daemon) startMetricsScraper() {
 				log.Printf("Failed to scrape zstor metrics: %v", err)
 			} else {
 				log.Println("Successfully scraped zstor metrics")
-				d.metricsChan <- true
+				d.handleMetricsUpdate()
 			}
 		case <-d.quitChan:
 			return
@@ -313,10 +300,10 @@ func (d *Daemon) run() {
 			d.handleRetry()
 		case result := <-d.uploadCompleteCh:
 			d.handleUploadResult(result)
-		case <-d.metricsChan:
-			d.handleMetricsUpdate()
 		case metadata := <-d.metadataChan:
 			d.handleMetadataUpdate(metadata)
+		case req := <-d.uploadRequestCh:
+			d.handleUploadRequest(req)
 		case <-d.quitChan:
 			log.Println("Daemon shutting down...")
 			return
@@ -362,9 +349,7 @@ func (d *Daemon) handleRetry() {
 		}
 
 		// Check metadata to see if file is already stored
-		d.metadataMutex.RLock()
 		_, exists := d.metadataStore[filePath]
-		d.metadataMutex.RUnlock()
 
 		// If metadata doesn't exist, upload the file
 		if !exists {
@@ -375,15 +360,13 @@ func (d *Daemon) handleRetry() {
 		}
 	}
 
-	// Send metrics update
-	d.metricsChan <- true
+	// Send metrics update directly
+	d.handleMetricsUpdate()
 }
 
 // handleUploadResult processes the result of an upload operation
 func (d *Daemon) handleUploadResult(result uploadResult) {
-	d.pendingMutex.Lock()
 	delete(d.pendingUploads, result.filePath)
-	d.pendingMutex.Unlock()
 
 	if result.err != nil {
 		log.Printf("Upload failed for %s: %v", result.filePath, result.err)
@@ -394,9 +377,7 @@ func (d *Daemon) handleUploadResult(result uploadResult) {
 
 	// Update metadata store with new metadata
 	if result.metadata != nil {
-		d.metadataMutex.Lock()
 		d.metadataStore[result.filePath] = *result.metadata
-		d.metadataMutex.Unlock()
 	}
 }
 
@@ -409,24 +390,17 @@ func (d *Daemon) handleMetricsUpdate() {
 
 // handleMetadataUpdate processes a metadata update
 func (d *Daemon) handleMetadataUpdate(metadata map[string]zstor.Metadata) {
-	d.metadataMutex.Lock()
 	d.metadataStore = metadata
-	d.metadataMutex.Unlock()
 	log.Println("Metadata updated")
 }
 
 // isUploadPending checks if an upload is pending for a file
 func (d *Daemon) isUploadPending(filePath string) bool {
-	d.pendingMutex.RLock()
-	defer d.pendingMutex.RUnlock()
 	return d.pendingUploads[filePath]
 }
 
 // markUploadPending marks a file as having a pending upload
 func (d *Daemon) markUploadPending(filePath string) bool {
-	d.pendingMutex.Lock()
-	defer d.pendingMutex.Unlock()
-
 	if d.pendingUploads[filePath] {
 		return false // Already pending
 	}
@@ -435,7 +409,48 @@ func (d *Daemon) markUploadPending(filePath string) bool {
 	return true
 }
 
-// uploadFile uploads a file in the background
+// handleUploadRequest processes an upload request by performing the actual upload in the background
+func (d *Daemon) handleUploadRequest(req uploadRequest) {
+	// Start upload in background
+	go func() {
+		var err error
+		var metadata *zstor.Metadata
+
+		if req.isIndex {
+			// Use StoreBatch for all index files to ensure atomicity and correct pathing.
+			err = d.zstorClient.StoreBatch([]string{req.filePath}, filepath.Dir(req.filePath))
+		} else {
+			// Use the simplified Store for data files.
+			err = d.zstorClient.Store(req.filePath)
+		}
+
+		if err != nil {
+			d.uploadCompleteCh <- uploadResult{
+				filePath: req.filePath,
+				err:      err,
+			}
+			return
+		}
+
+		// Fetch metadata for the uploaded file
+		metadata, err = zstor.GetMetadata(d.cfg.ZstorConfigPath, req.filePath)
+		if err != nil {
+			d.uploadCompleteCh <- uploadResult{
+				filePath: req.filePath,
+				err:      fmt.Errorf("failed to fetch metadata after upload: %w", err),
+			}
+			return
+		}
+
+		d.uploadCompleteCh <- uploadResult{
+			filePath: req.filePath,
+			metadata: metadata,
+			err:      nil,
+		}
+	}()
+}
+
+// uploadFile sends an upload request to the main thread
 func (d *Daemon) uploadFile(filePath string, isIndex bool) {
 	// Mark as pending
 	if !d.markUploadPending(filePath) {
@@ -443,41 +458,9 @@ func (d *Daemon) uploadFile(filePath string, isIndex bool) {
 		return
 	}
 
-	// Start upload in background
-	go func() {
-		var err error
-		var metadata *zstor.Metadata
-
-		if isIndex {
-			// Use StoreBatch for all index files to ensure atomicity and correct pathing.
-			err = d.zstorClient.StoreBatch([]string{filePath}, filepath.Dir(filePath))
-		} else {
-			// Use the simplified Store for data files.
-			err = d.zstorClient.Store(filePath)
-		}
-
-		if err != nil {
-			d.uploadCompleteCh <- uploadResult{
-				filePath: filePath,
-				err:      err,
-			}
-			return
-		}
-
-		// Fetch metadata for the uploaded file
-		metadata, err = zstor.GetMetadata(d.cfg.ZstorConfigPath, filePath)
-		if err != nil {
-			d.uploadCompleteCh <- uploadResult{
-				filePath: filePath,
-				err:      fmt.Errorf("failed to fetch metadata after upload: %w", err),
-			}
-			return
-		}
-
-		d.uploadCompleteCh <- uploadResult{
-			filePath: filePath,
-			metadata: metadata,
-			err:      nil,
-		}
-	}()
+	// Send upload request to main thread
+	d.uploadRequestCh <- uploadRequest{
+		filePath: filePath,
+		isIndex:  isIndex,
+	}
 }

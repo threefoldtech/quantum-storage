@@ -49,7 +49,7 @@ func runRestore() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if _, err := CreateDirectories(cfg, false); err != nil {
+	if _, err := CreateDirectories(cfg); err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
@@ -90,7 +90,7 @@ func runRestore() error {
 
 	// 5. Setup local machine (binaries, directories, services)
 	fmt.Println("Setting up local machine...")
-	if err := service.Setup(cfg, metaDeployments, dataDeployments, false); err != nil { // false for not local
+	if err := service.Setup(cfg, metaDeployments, dataDeployments); err != nil {
 		return errors.Wrap(err, "failed to perform local machine setup")
 	}
 
