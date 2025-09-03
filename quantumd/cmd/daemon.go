@@ -26,7 +26,7 @@ var daemonCmd = &cobra.Command{
 			return err
 		}
 
-		zstorClient, err := zstor.NewClient("/usr/local/bin/zstor", cfg.ZstorConfigPath)
+		zstorClient, err := zstor.NewClient(cfg.ZstorConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to initialize zstor client: %w", err)
 		}

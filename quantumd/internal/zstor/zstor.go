@@ -20,15 +20,17 @@ type Client struct {
 }
 
 // NewClient creates a new zstor client.
-func NewClient(binaryPath, configPath string) (*Client, error) {
-	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("zstor binary not found at %s", binaryPath)
+func NewClient(configPath string) (*Client, error) {
+	zstorPath, err := exec.LookPath("zstor")
+	if err != nil {
+		return nil, fmt.Errorf("zstor binary not found in PATH: %w", err)
 	}
+
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("zstor config not found at %s", configPath)
 	}
 	return &Client{
-		BinaryPath: binaryPath,
+		BinaryPath: zstorPath,
 		ConfigPath: configPath,
 	}, nil
 }

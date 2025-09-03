@@ -72,7 +72,12 @@ type Metadata struct {
 
 // GetMetadata fetches and parses metadata for a given file using zstor-metadata-decoder.
 func GetMetadata(configPath, filePath string) (*Metadata, error) {
-	cmd := exec.Command("/usr/local/bin/zstor-metadata-decoder", "--config", configPath, "--file", filePath)
+	decoderPath, err := exec.LookPath("zstor-metadata-decoder")
+	if err != nil {
+		return nil, fmt.Errorf("zstor-metadata-decoder binary not found in PATH: %w", err)
+	}
+
+	cmd := exec.Command(decoderPath, "--config", configPath, "--file", filePath)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute zstor-metadata-decoder: %w", err)
@@ -88,7 +93,12 @@ func GetMetadata(configPath, filePath string) (*Metadata, error) {
 
 // GetAllMetadata fetches and parses metadata for all files using zstor-metadata-decoder.
 func GetAllMetadata(configPath string) (map[string]Metadata, error) {
-	cmd := exec.Command("/usr/local/bin/zstor-metadata-decoder", "--config", configPath, "--all")
+	decoderPath, err := exec.LookPath("zstor-metadata-decoder")
+	if err != nil {
+		return nil, fmt.Errorf("zstor-metadata-decoder binary not found in PATH: %w", err)
+	}
+
+	cmd := exec.Command(decoderPath, "--config", configPath, "--all")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute zstor-metadata-decoder: %w", err)
