@@ -36,7 +36,12 @@ of the stored files. It also checks for any pending uploads.`,
 		}
 
 		// Get all metadata from zstor once
-		allMetadata, err := zstor.GetAllMetadata(cfg.ZstorConfigPath)
+		zstorClient, err := zstor.NewClient(cfg.ZstorConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to create zstor client: %w", err)
+		}
+
+		allMetadata, err := zstorClient.GetAllMetadata()
 		if err != nil {
 			return fmt.Errorf("failed to get metadata: %w", err)
 		}

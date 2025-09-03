@@ -15,8 +15,9 @@ import (
 
 // Client provides a high-level API for interacting with the zstor binary.
 type Client struct {
-	BinaryPath string
-	ConfigPath string
+	BinaryPath          string
+	ConfigPath          string
+	MetadataDecoderPath string
 }
 
 // NewClient creates a new zstor client.
@@ -29,9 +30,16 @@ func NewClient(configPath string) (*Client, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("zstor config not found at %s", configPath)
 	}
+
+	decoderPath, err := exec.LookPath("zstor-metadata-decoder")
+	if err != nil {
+		return nil, fmt.Errorf("zstor-metadata-decoder binary not found in PATH: %w", err)
+	}
+
 	return &Client{
-		BinaryPath: zstorPath,
-		ConfigPath: configPath,
+		BinaryPath:          zstorPath,
+		ConfigPath:          configPath,
+		MetadataDecoderPath: decoderPath,
 	}, nil
 }
 

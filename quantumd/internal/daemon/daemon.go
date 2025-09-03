@@ -102,7 +102,7 @@ func (d *Daemon) refreshMetadata() error {
 	}
 
 	// Fetch all metadata
-	allMetadata, err := zstor.GetAllMetadata(d.cfg.ZstorConfigPath)
+	allMetadata, err := d.zstorClient.GetAllMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to fetch all metadata: %w", err)
 	}
@@ -206,7 +206,7 @@ func (d *Daemon) StartMetadataRefresh() {
 				}
 
 				// Fetch all metadata
-				allMetadata, err := zstor.GetAllMetadata(d.cfg.ZstorConfigPath)
+				allMetadata, err := d.zstorClient.GetAllMetadata()
 				if err != nil {
 					log.Printf("Failed to fetch all metadata: %v", err)
 					return
@@ -371,7 +371,7 @@ func (d *Daemon) handleUploadRequest(req uploadRequest) {
 		}
 
 		// Fetch metadata for the uploaded file
-		metadata, err = zstor.GetMetadata(d.cfg.ZstorConfigPath, req.filePath)
+		metadata, err = d.zstorClient.GetMetadata(req.filePath)
 		if err != nil {
 			d.uploadCompleteCh <- uploadResult{
 				filePath: req.filePath,
