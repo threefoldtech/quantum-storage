@@ -85,19 +85,25 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.MetaSize == "" {
 		cfg.MetaSize = "1G"
 	}
+	if cfg.RetryInterval == 0 {
+		cfg.RetryInterval = 10 * time.Minute
+	}
 
 	if cfg.ZdbRotateTime == 0 {
 		cfg.ZdbRotateTime = cfg.RetryInterval
 	}
+
 	if cfg.ZdbConnectionType == "" {
 		cfg.ZdbConnectionType = "mycelium"
 	}
+
 	if cfg.ZdbDataSize == "" {
 		cfg.ZdbDataSize = "64M"
 	}
 	if cfg.PrometheusPort == 0 {
 		cfg.PrometheusPort = 9092
 	}
+
 	if cfg.MaxDeploymentRetries == 0 {
 		cfg.MaxDeploymentRetries = 5
 	}

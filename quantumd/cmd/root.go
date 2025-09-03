@@ -3,13 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	defaultRetryInterval = 10 * time.Minute
 )
 
 var rootCmd = &cobra.Command{
