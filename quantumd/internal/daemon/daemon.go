@@ -19,7 +19,9 @@ import (
 
 // Metrics holds all Prometheus metrics for the daemon
 type Metrics struct {
-	lastRetryRunTime prometheus.Gauge
+	lastRetryRunTime     prometheus.Gauge
+	healthyFileConfigs   prometheus.Gauge
+	unhealthyFileConfigs prometheus.Gauge
 }
 
 // Daemon represents the main daemon structure
@@ -128,7 +130,21 @@ func (d *Daemon) initMetrics() {
 			Help: "The timestamp of the last successful retry cycle.",
 		},
 	)
+	d.metrics.healthyFileConfigs = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "healthy_file_configs",
+			Help: "The number of files with healthy backend configurations.",
+		},
+	)
+	d.metrics.unhealthyFileConfigs = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "unhealthy_file_configs",
+			Help: "The number of files with unhealthy backend configurations.",
+		},
+	)
 	prometheus.MustRegister(d.metrics.lastRetryRunTime)
+	prometheus.MustRegister(d.metrics.healthyFileConfigs)
+	prometheus.MustRegister(d.metrics.unhealthyFileConfigs)
 }
 
 // refreshMetadata fetches all metadata and updates the in-memory store
@@ -312,8 +328,8 @@ func (d *Daemon) handleRetry() {
 		}
 	}
 
-	// Send metrics update directly
-	d.handleMetricsUpdate()
+	// Update metrics
+	d.updateHealthyFileConfigs()
 }
 
 // handleUploadResult processes the result of an upload operation
@@ -337,13 +353,69 @@ func (d *Daemon) handleUploadResult(result uploadResult) {
 func (d *Daemon) handleMetricsUpdate() {
 	timestamp := float64(time.Now().Unix())
 	d.metrics.lastRetryRunTime.Set(timestamp)
+	
+	// Update healthy file configs metric
+	d.updateHealthyFileConfigs()
+	
 	log.Println("Updated last_retry_run_time metric.")
+}
+
+// updateHealthyFileConfigs updates the healthy file configurations metric
+func (d *Daemon) updateHealthyFileConfigs() {
+	healthyCount := 0
+	unhealthyCount := 0
+	
+	for filePath, metadata := range d.metadataStore {
+		if d.isFileBackendHealthy(filePath, metadata) {
+			healthyCount++
+		} else {
+			unhealthyCount++
+		}
+	}
+	
+	d.metrics.healthyFileConfigs.Set(float64(healthyCount))
+	d.metrics.unhealthyFileConfigs.Set(float64(unhealthyCount))
+	
+	log.Printf("Updated healthy file configs metric: %d healthy, %d unhealthy", healthyCount, unhealthyCount)
+}
+
+// isFileBackendHealthy checks if a file has a healthy backend configuration
+func (d *Daemon) isFileBackendHealthy(filePath string, metadata zstor.Metadata) bool {
+	// Get all backend statuses
+	backendStatuses := d.metricsScraper.GetBackendStatuses()
+	
+	// Count healthy backends for this file
+	healthyBackends := 0
+	
+	// Check each shard in the metadata
+	for _, shard := range metadata.Shards {
+		// Create a key to look up the backend status
+		// The key format is "{address}-{backend_type}-{namespace}"
+		// For shards, the backend type is "data"
+		key := fmt.Sprintf("%s-data-%s", shard.CI.Address, shard.CI.Namespace)
+		
+		// Check if this backend exists in our scraped metrics
+		if status, exists := backendStatuses[key]; exists {
+			// Check if the backend is alive
+			if status.IsAlive {
+				healthyBackends++
+			}
+		}
+		// If backend doesn't exist in metrics, it's considered unhealthy
+	}
+	
+	// Check if we have enough healthy backends for the desired shards
+	// We need at least metadata.DataShards healthy backends
+	return healthyBackends >= metadata.DataShards
 }
 
 // handleMetadataUpdate processes a metadata update
 func (d *Daemon) handleMetadataUpdate(metadata map[string]zstor.Metadata) {
 	d.metadataStore = metadata
 	log.Println("Metadata updated")
+	
+	// Update healthy file configs metric
+	d.updateHealthyFileConfigs()
 }
 
 // isUploadPending checks if an upload is pending for a file
