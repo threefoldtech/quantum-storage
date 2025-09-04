@@ -31,8 +31,8 @@ func DownloadBinaries() error {
 	var quantumdVersion string
 	// Get quantumd version for metadata decoder. We use the same version since
 	// these are released together
-	if version != "dev" {
-		quantumdVersion = strings.TrimPrefix(version, "v")
+	if Version != "dev" {
+		quantumdVersion = strings.TrimPrefix(Version, "v")
 	} else {
 		quantumdVersion = "dev"
 	}

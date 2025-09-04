@@ -24,12 +24,12 @@ func init() {
 	// Add version flag handler
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if showVersion, _ := cmd.Flags().GetBool("version"); showVersion {
-			fmt.Printf("quantumd version %s\n", version)
-			if commit != "" {
-				fmt.Printf("commit: %s\n", commit)
+			fmt.Printf("quantumd version %s\n", Version)
+			if Commit != "" {
+				fmt.Printf("commit: %s\n", Commit)
 			}
-			if date != "" {
-				fmt.Printf("built at: %s\n", date)
+			if Date != "" {
+				fmt.Printf("built at: %s\n", Date)
 			}
 			os.Exit(0)
 		}
@@ -39,9 +39,9 @@ func init() {
 var (
 	ConfigFile string
 	// Version information will be set during build
-	version = "dev"
-	commit  = ""
-	date    = ""
+	Version = "dev"
+	Commit  = ""
+	Date    = ""
 )
 
 func Execute() {

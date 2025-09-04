@@ -11,12 +11,12 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of quantumd",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("quantumd version %s\n", version)
-		if commit != "" {
-			fmt.Printf("commit: %s\n", commit)
+		fmt.Printf("quantumd version %s\n", Version)
+		if Commit != "" {
+			fmt.Printf("commit: %s\n", Commit)
 		}
-		if date != "" {
-			fmt.Printf("built at: %s\n", date)
+		if Date != "" {
+			fmt.Printf("built at: %s\n", Date)
 		}
 	},
 }

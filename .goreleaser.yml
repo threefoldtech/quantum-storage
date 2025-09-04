@@ -13,7 +13,7 @@ builds:
     flags:
       - -tags=musl,netgo,sqlite_omit_load_extension
     ldflags:
-      - -s -w -X cmd.version={{.Version}} -X cmd.commit={{.Commit}} -X cmd.date={{.Date}}
+      - -s -w -X github.com/threefoldtech/quantum-storage/quantumd/cmd.Version={{.Version}} -X github.com/threefoldtech/quantum-storage/quantumd/cmd.Commit={{.Commit}} -X github.com/threefoldtech/quantum-storage/quantumd/cmd.Date={{.Date}}
       - -extldflags "-static"
 
   - id: zstor-metadata-decoder
