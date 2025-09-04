@@ -28,17 +28,20 @@ var (
 )
 
 func DownloadBinaries() error {
-	// Get quantumd version for metadata decoder
-	quantumdVersion := "0.4.1" // Default version
-	if version != "dev" && version != "" {
+	var quantumdVersion string
+	// Get quantumd version for metadata decoder. We use the same version since
+	// these are released together
+	if version != "dev" {
 		quantumdVersion = strings.TrimPrefix(version, "v")
+	} else {
+		quantumdVersion = "dev"
 	}
 
 	binaries := map[string]string{
-		"zdbfs": fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
-		"zdb":   fmt.Sprintf("https://github.com/threefoldtech/0-db/releases/download/v%s/zdb-%s-linux-amd64-static", zdbVersion, zdbVersion),
-		"zstor": fmt.Sprintf("https://github.com/threefoldtech/0-stor_v2/releases/download/v%s/zstor_v2-x86_64-linux-musl", zstorVersion),
-		"zstor-metadata-decoder": fmt.Sprintf("https://github.com/threefoldtech/quantum-storage/releases/download/v%s/zstor-metadata-decoder_%s_linux_amd64", quantumdVersion, quantumdVersion),
+		"zdbfs":                  fmt.Sprintf("https://github.com/threefoldtech/0-db-fs/releases/download/v%s/zdbfs-%s-amd64-linux-static", zdbfsVersion, zdbfsVersion),
+		"zdb":                    fmt.Sprintf("https://github.com/threefoldtech/0-db/releases/download/v%s/zdb-%s-linux-amd64-static", zdbVersion, zdbVersion),
+		"zstor":                  fmt.Sprintf("https://github.com/threefoldtech/0-stor_v2/releases/download/v%s/zstor_v2-x86_64-linux-musl", zstorVersion),
+		"zstor-metadata-decoder": fmt.Sprintf("https://github.com/threefoldtech/quantum-storage/releases/download/v%s/zstor-metadata-decoder_linux_amd64", quantumdVersion),
 	}
 
 	for name, url := range binaries {
@@ -92,6 +95,13 @@ func needsDownload(binaryName, expectedVersion string) (bool, error) {
 		return true, nil
 	}
 
+	// If quantumd is a dev build, we can't download the corresponding metadata
+	// decoder version. For dev testing, we provide our own decoder binary
+	if currentVersion == "dev" {
+		fmt.Printf("Binary %s has dev version, skipping download\n", binaryName)
+		return false, nil
+	}
+
 	if currentVersion == expectedVersion {
 		fmt.Printf("Binary %s already has correct version %s, skipping download\n", binaryName, expectedVersion)
 		return false, nil
@@ -110,7 +120,7 @@ func SetAssets(templates embed.FS) {
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup QSFS components",
-	Long: `Downloads binaries and configures services for zstor, zdb and zdbfs.`,
+	Long:  `Downloads binaries and configures services for zstor, zdb and zdbfs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := SetupQSFS(); err != nil {
 			fmt.Printf("Error setting up QSFS: %v\n", err)
@@ -176,8 +186,6 @@ func SetupQSFS() error {
 	fmt.Println("Setup completed successfully.")
 	return nil
 }
-
-
 
 func CreateDirectories(cfg *config.Config) (bool, error) {
 	dirs := []string{

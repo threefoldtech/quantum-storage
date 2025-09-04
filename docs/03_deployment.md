@@ -15,7 +15,7 @@ Before using `quantumd`, a frontend machine must be provisioned. Linux machines 
 After connecting to the frontend machine by SSH, you can install `quantumd` with this command:
 
 ```bash
-wget https://github.com/threefoldtech/quantum-storage/releases/download/v0.4.0/quantumd_0.4.0_linux_amd64 -O /usr/local/bin/quantumd
+wget https://github.com/threefoldtech/quantum-storage/releases/latest/download/quantumd_linux_amd64 -O /usr/local/bin/quantumd
 chmod +x /usr/local/bin/quantumd
 ```
 That will download the latest precompiled release binary from this repository and make it executable. Check for success with:
