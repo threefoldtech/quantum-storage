@@ -23,6 +23,10 @@ builds:
     command: build
     targets:
       - x86_64-unknown-linux-musl
+    hooks:
+      pre:
+        - cmd: sed -i 's/version = "0.0.0"/version = "{{.Version}}"/' Cargo.toml
+          dir: ./zstor-metadata-decoder
 
 archives:
   - id: quantumd
