@@ -32,11 +32,11 @@ archives:
   - id: quantumd
     ids: ["quantumd"]
     formats: ["binary", "tar.gz"]
-    name_template: "quantumd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "quantumd_{{ .Os }}_{{ .Arch }}"
   - id: zstor-metadata-decoder
     ids: ["zstor-metadata-decoder"]
     formats: ["binary", "tar.gz"]
-    name_template: "zstor-metadata-decoder_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "zstor-metadata-decoder_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
