@@ -7,9 +7,9 @@ StartLimitIntervalSec=0
 ProtectHome=true
 ProtectSystem=true
 ReadWritePaths={{.ZdbRootPath}} /var/log
-ExecStart=/usr/local/bin/zstor \\
-  --log_file /var/log/zstor.log \\
-  -c {{.ZstorConfigPath}} \\
+ExecStart=/usr/local/bin/zstor \
+  --log_file /var/log/zstor.log \
+  -c {{.ZstorConfigPath}} \
   monitor
 Restart=always
 RestartSec=100ms
