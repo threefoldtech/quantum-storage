@@ -1,4 +1,4 @@
-# Quantum Storage Filesystem
+# Quantum Safe Filesystem
 
 Quantum Storage is a FUSE filesystem that uses mechanisms of forward looking error correcting codes to make sure data (files and metadata) are stored in multiple remote places in a way that we can afford losing `x` number of locations without losing the data. There is other factors that are involved into this operation like encryption. Please check [0-stor](https://github.com/threefoldtech/0-stor_v2) documentations for details.
 
