@@ -23,3 +23,8 @@ Once the zdb segment file is restored, the read operation continues.
 ## How to use it
 
 See the [docs](https://github.com/threefoldtech/quantum-storage/tree/master/docs) on this repo for more information about the system and how to use it.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Copyright (c) TFTech NV.
