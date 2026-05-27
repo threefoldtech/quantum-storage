@@ -1,28 +1,42 @@
-# Quantum Safe Filesystem
+# Quantum Storage
 
-Quantum Storage is a FUSE filesystem that uses mechanisms of forward looking error correcting codes to make sure data (files and metadata) are stored in multiple remote places in a way that we can afford losing `x` number of locations without losing the data. There is other factors that are involved into this operation like encryption. Please check [0-stor](https://github.com/threefoldtech/0-stor_v2) documentations for details.
+Quantum Storage is a FUSE filesystem that uses forward error correction and encryption to distribute data across multiple remote storage locations. It is designed so that a configurable number of locations can be lost without compromising data availability or integrity. The system is built to resist cryptographic attacks from quantum computers by using quantum-safe principles. For details on the underlying storage engine, see the [0-stor](https://github.com/threefoldtech/0-stor_v2) documentation.
 
-The aim is to support unlimited local storage with remote backends for offload and backup which cannot be broken, even by a quantum computer.
+## What this is
 
-## Overview
+Quantum Storage provides a local filesystem interface backed by distributed remote storage. Data and metadata are split, encrypted, and spread across multiple backends using forward error correcting codes. If some backends become unreachable, the remaining pieces are sufficient to reconstruct the original data. The local component caches recently used data for fast access, while older segments are offloaded to remote backends.
 
-To have a working qsfs filesystem there are multiple components that need to work together to make it work. These components are
+## What this repository contains
 
-- [0-db-fs](https://github.com/threefoldtech/0-db-fs) this is what creates the `FUSE` mount (the actual user facing filesystem) this component does not know about qsfs or forward error correction. It's main job is to expose the fuse filesystem and store it's data in a local zdb instacne
-- [0-db](https://github.com/threefoldtech/0-db) is a local `cache` db. this is what is used by the `0-db-fs` to store the actual data of the filesystem. This means that any read/write operations triggered by the `0-db-fs` directly access this (single) instance of `0-db` for the data blocks
-- [0-stor](https://github.com/threefoldtech/0-stor_v2) zero stor is listening to `0-db` events (with a hooks system) to upload and/or download zdb data files segments to remote locations. that's where the encryption and forward error correction happens.
+- **Quantum Storage filesystem components** integrating FUSE, local caching, and remote distribution
+- **Documentation** on system architecture, configuration, and usage in the [docs](./docs) directory
+- **Integration with 0-db-fs, 0-db, and 0-stor** for the complete storage pipeline
 
-Since zdb is an `append-only` database, the local db will just keep growing linearly with each write (and delete) operation. ZDB will then create db segment files that are guaranteed to **not** change in the future. What happens once a segment file is closed (it hit it's max file size) a hook is triggered which in return will trigger `0-stor` to chunk and upload this file to the remote locations (zdbs).
+## Role in the stack
 
-The segment file will then be deleted (at some point) in the future when the number of segment files reaches a certain number, older files will get deleted.
+Quantum Storage operates as a distributed storage layer within the broader infrastructure stack. It relies on the following components:
 
-If the filesystem then is trying to access a piece of old data, it will make a read call to the local `zdb`. If the zdb is trying to access an old segment of the db that is no longer on disk, another hook is triggered to `0-stor` to download that segment. 0-stor then will re-download the required segment from the remote locations and re-build it.
+- **[0-db-fs](https://github.com/threefoldtech/0-db-fs)** — Exposes the FUSE mount point to users. It stores filesystem data in a local 0-db instance.
+- **[0-db](https://github.com/threefoldtech/0-db)** — Acts as a local append-only cache database. All read and write operations from 0-db-fs access this local instance.
+- **[0-stor](https://github.com/threefoldtech/0-stor_v2)** — Listens to 0-db events via hooks. When a local segment file reaches its size limit and is closed, 0-stor chunks, encrypts, and uploads it to remote storage locations using forward error correction. If a read request targets an offloaded segment, 0-stor downloads and reconstructs it from the remote backends.
 
-Once the zdb segment file is restored, the read operation continues.
+Because 0-db is append-only, the local database grows linearly with writes. Closed segment files are eventually deleted based on retention policy. Access to deleted segments triggers automatic retrieval and reconstruction from remote backends.
+
+## ZOS / Zero-OS
+
+ZOS, also known as Zero-OS, is the operating system layer used to run and manage nodes. It provides the low-level runtime environment for workloads, networking, storage, and automation. Quantum Storage is deployed as part of the storage subsystem on ZOS nodes.
+
+## Relation to ThreeFold
+
+This technology is used within the ThreeFold ecosystem and was first deployed on the ThreeFold Grid. The component itself is designed as reusable infrastructure technology and should be understood by its technical function first, independent of any specific deployment.
+
+## Ownership
+
+This repository is owned and maintained by TF-Tech NV, a Belgian company responsible for the development and maintenance of this technology.
 
 ## How to use it
 
-See the [docs](https://github.com/threefoldtech/quantum-storage/tree/master/docs) on this repo for more information about the system and how to use it.
+See the [docs](https://github.com/threefoldtech/quantum-storage/tree/master/docs) in this repository for detailed system documentation and usage instructions.
 
 ## License
 
