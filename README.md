@@ -36,7 +36,7 @@ This repository is owned and maintained by TF-Tech NV, a Belgian company respons
 
 ## How to use it
 
-See the [docs](https://github.com/threefoldtech/quantum-storage/tree/master/docs) in this repository for detailed system documentation and usage instructions.
+See the [docs](https://github.com/threefoldtech/qss_quantum_storage/tree/master/docs) in this repository for detailed system documentation and usage instructions.
 
 ## License
 
